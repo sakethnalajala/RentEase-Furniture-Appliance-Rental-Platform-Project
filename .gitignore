@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.local.example
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Production builds
+build/
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Local file uploads (dev-mode fallback storage when Cloudinary isn't configured)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Misc
+*.pem
+.vercel

@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface: 255 255 255;
+  --surface-muted: 248 250 252;
+  --surface-inverted: 15 23 42;
+  --mx: 50%;
+  --my: 50%;
+  color-scheme: light;
+}
+
+.dark,
+.theme-glass {
+  --surface: 8 11 22;
+  --surface-muted: 15 19 35;
+  --surface-inverted: 248 250 252;
+  color-scheme: dark;
+}
+
+.theme-midnight {
+  --surface: 6 12 28;
+  --surface-muted: 9 17 38;
+  --surface-inverted: 248 250 252;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-300;
+  @apply dark:bg-[#05070f] dark:text-slate-100;
+}
+
+::selection {
+  @apply bg-brand-200 text-brand-900 dark:bg-brand-700 dark:text-white;
+}
+
+/* Slim, theme-aware scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300 dark:bg-slate-700;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400 dark:bg-slate-600;
+}
+
+/* Native <select> option lists are rendered by the OS, not by Tailwind's `dark:` utilities —
+   without this, dropdown menus fall back to light-on-light or dark-on-dark text in Dark/Glass
+   theme and become unreadable. This is a global floor; the custom Select component covers the
+   primary dropdowns (e.g. Browse sort) with fully themed menus on top of this. */
+select {
+  color-scheme: light;
+}
+.dark select,
+.theme-glass select,
+.theme-midnight select {
+  color-scheme: dark;
+}
+select option {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+.dark select option,
+.theme-glass select option,
+.theme-midnight select option {
+  color: #f1f5f9;
+  background-color: #1e293b;
+}
+
+@layer utilities {
+  .glass {
+    @apply border border-white/60 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/5;
+  }
+
+  .glass-strong {
+    @apply border border-white/70 bg-white/80 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/60;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-500 via-brand-600 to-accent-500 bg-clip-text text-transparent;
+  }
+
+  .bg-mesh {
+    @apply bg-mesh-light dark:bg-mesh-dark;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-slate-200/80 dark:bg-slate-800/80;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/10;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#05070f];
+  }
+
+  /* Gradient-outline card border (padding-box/border-box mask trick) — used on demo account
+     cards and other spots that want a premium "glowing edge" without a solid border color. */
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(135deg, theme('colors.brand.400'), theme('colors.accent.400'), theme('colors.rose.400'));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* A soft radial spotlight that tracks the cursor — position driven by --mx/--my custom
+     properties updated on mousemove (see AuroraBackground). GPU-cheap: background only. */
+  .mouse-glow {
+    background: radial-gradient(600px circle at var(--mx) var(--my), rgba(99, 102, 241, 0.15), transparent 60%);
+  }
+}
+
+/* ---- Glass theme: a distinct third theme layered on top of dark-mode's contrast rules ----
+   next-themes applies class="theme-glass" to <html> for this theme (see
+   components/ThemeProvider.js); tailwind.config.js's darkMode selector matches `.dark` OR
+   `.theme-glass`, so every existing `dark:` utility already gives correct contrast for free —
+   these rules only add the extra glassy flourishes on top. */
+.theme-glass body {
+  background: linear-gradient(120deg, #0f0a2e, #1b0f42, #0a1a3d, #2a0f3d, #0f0a2e);
+  background-size: 300% 300%;
+  animation: gradient-shift 18s ease infinite;
+}
+
+.theme-glass .glass,
+.theme-glass .glass-strong {
+  background-color: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.18);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+
+.theme-glass .gradient-border::before {
+  background: linear-gradient(135deg, theme('colors.brand.300'), theme('colors.accent.300'), theme('colors.rose.300'));
+}
+
+/* ---- Professional Midnight Blue: deep navy with neon-blue/cyan accents ---- */
+.theme-midnight body {
+  background: linear-gradient(120deg, #020617, #05122e, #071b3d, #04263f, #020617);
+  background-size: 300% 300%;
+  animation: gradient-shift 18s ease infinite;
+}
+
+.theme-midnight .glass,
+.theme-midnight .glass-strong {
+  background-color: rgb(56 189 248 / 0.06);
+  border-color: rgb(56 189 248 / 0.22);
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+.theme-midnight .gradient-border::before {
+  background: linear-gradient(135deg, #38bdf8, #6366f1, #22d3ee);
+}
+
+.theme-midnight ::selection {
+  background: rgb(56 189 248 / 0.35);
+  color: #f0f9ff;
+}
+
