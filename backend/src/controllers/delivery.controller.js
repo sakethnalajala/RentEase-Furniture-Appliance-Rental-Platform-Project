@@ -204,7 +204,8 @@ const listAssigned = asyncHandler(async (req, res) => {
     status: { $in: [ORDER_ITEM_STATUS.PREPARING, ORDER_ITEM_STATUS.OUT_FOR_DELIVERY] },
   })
     .sort({ updatedAt: -1 })
-    .populate(ITEM_POPULATE);
+    .populate(ITEM_POPULATE)
+    .lean();
   new ApiResponse(200, items.map(withDemoFields)).send(res);
 });
 
@@ -373,13 +374,14 @@ const listHistory = asyncHandler(async (req, res) => {
     status: { $nin: [ORDER_ITEM_STATUS.PREPARING, ORDER_ITEM_STATUS.OUT_FOR_DELIVERY, ORDER_ITEM_STATUS.PENDING, ORDER_ITEM_STATUS.CONFIRMED] },
   })
     .sort({ updatedAt: -1 })
-    .populate(ITEM_POPULATE);
+    .populate(ITEM_POPULATE)
+    .lean();
   new ApiResponse(200, items).send(res);
 });
 
 const getEarnings = asyncHandler(async (req, res) => {
   const partner = await requirePartner(req);
-  const items = await OrderItem.find({ deliveryPartner: partner._id, deliveredAt: { $ne: null } }).select('deliveryFee deliveredAt');
+  const items = await OrderItem.find({ deliveryPartner: partner._id, deliveredAt: { $ne: null } }).select('deliveryFee deliveredAt').lean();
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -425,7 +427,7 @@ const getEarnings = asyncHandler(async (req, res) => {
 
 const getStats = asyncHandler(async (req, res) => {
   const partner = await requirePartner(req);
-  const allAssigned = await OrderItem.find({ deliveryPartner: partner._id }).select('status pickedUpAt deliveredAt createdAt');
+  const allAssigned = await OrderItem.find({ deliveryPartner: partner._id }).select('status pickedUpAt deliveredAt createdAt').lean();
 
   const completed = allAssigned.filter((i) => i.deliveredAt);
   const cancelled = allAssigned.filter((i) => i.status === ORDER_ITEM_STATUS.CANCELLED);

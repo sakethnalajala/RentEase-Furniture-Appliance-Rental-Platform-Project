@@ -376,7 +376,8 @@ const adminListProducts = asyncHandler(async (req, res) => {
       .populate('city', 'name state')
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
-      .limit(limitNum),
+      .limit(limitNum)
+      .lean(),
     Product.countDocuments(filter),
   ]);
 
@@ -662,12 +663,13 @@ const adminListCustomers = asyncHandler(async (req, res) => {
 const adminGetCustomer = asyncHandler(async (req, res) => {
   const customer = await User.findOne({ _id: req.params.id, role: ROLES.CUSTOMER })
     .select('name email phone avatar isActive createdAt lastLoginAt selectedCity')
-    .populate('selectedCity', 'name state');
+    .populate('selectedCity', 'name state')
+    .lean();
   if (!customer) throw ApiError.notFound('Customer not found.');
 
   const [orders, addresses] = await Promise.all([
-    Order.find({ customer: customer._id }).sort({ createdAt: -1 }).populate({ path: 'items', populate: { path: 'product', select: 'name images' } }),
-    Address.find({ user: customer._id }).populate('city', 'name state'),
+    Order.find({ customer: customer._id }).sort({ createdAt: -1 }).populate({ path: 'items', populate: { path: 'product', select: 'name images' } }).lean(),
+    Address.find({ user: customer._id }).populate('city', 'name state').lean(),
   ]);
   const allItems = orders.flatMap((o) => o.items);
   const activeRentals = allItems.filter((i) => i.status === ORDER_ITEM_STATUS.ACTIVE_RENTAL).length;
@@ -933,7 +935,8 @@ const adminListOrders = asyncHandler(async (req, res) => {
       .populate({ path: 'order', select: 'orderNumber customer placedAt', populate: { path: 'customer', select: 'name email' } })
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
-      .limit(limitNum),
+      .limit(limitNum)
+      .lean(),
     OrderItem.countDocuments(filter),
     OrderItem.aggregate([{ $match: cityOnlyFilter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
   ]);
@@ -986,7 +989,8 @@ const adminListRentals = asyncHandler(async (req, res) => {
       .populate({ path: 'deliveryPartner', select: 'user vehicleType', populate: { path: 'user', select: 'name phone' } })
       .populate({ path: 'order', select: 'orderNumber customer', populate: { path: 'customer', select: 'name email phone' } })
       .sort({ rentalEndDate: 1 })
-      .limit(200),
+      .limit(200)
+      .lean(),
     Promise.all(
       Object.entries(rentalStatusGroups).map(([key, statuses]) =>
         OrderItem.countDocuments({ ...cityOnlyFilter, status: { $in: statuses } }).then((n) => [key, n])

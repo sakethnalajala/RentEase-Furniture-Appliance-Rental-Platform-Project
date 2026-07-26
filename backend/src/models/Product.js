@@ -69,6 +69,8 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ city: 1, category: 1, isActive: 1 });
+productSchema.index({ vendor: 1, isActive: 1 });
+productSchema.index({ isActive: 1, createdAt: -1 });
 productSchema.index({ name: 'text', brand: 'text', description: 'text' });
 
 module.exports = mongoose.model('Product', productSchema);

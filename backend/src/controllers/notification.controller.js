@@ -4,7 +4,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const Notification = require('../models/Notification');
 
 const listNotifications = asyncHandler(async (req, res) => {
-  const notifications = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(100);
+  const notifications = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(100).lean();
   new ApiResponse(200, notifications).send(res);
 });
 

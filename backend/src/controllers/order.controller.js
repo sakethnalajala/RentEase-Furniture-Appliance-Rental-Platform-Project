@@ -285,31 +285,31 @@ const checkout = asyncHandler(async (req, res) => {
 const listMyOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ customer: req.user._id })
     .sort({ createdAt: -1 })
-    .populate({ path: 'items', populate: ORDER_ITEM_POPULATE });
+    .populate({ path: 'items', populate: ORDER_ITEM_POPULATE })
+    .lean();
   new ApiResponse(200, orders).send(res);
 });
 
 const listMyOrderItems = asyncHandler(async (req, res) => {
   const { status } = req.query;
-  const orders = await Order.find({ customer: req.user._id }).select('_id orderNumber placedAt');
+  const orders = await Order.find({ customer: req.user._id }).select('_id orderNumber placedAt').lean();
   const orderIds = orders.map((o) => o._id);
   const orderById = new Map(orders.map((o) => [String(o._id), o]));
 
   const filter = { order: { $in: orderIds } };
   if (status) filter.status = status;
 
-  const items = await OrderItem.find(filter).sort({ createdAt: -1 }).populate(ORDER_ITEM_POPULATE);
+  const items = await OrderItem.find(filter).sort({ createdAt: -1 }).populate(ORDER_ITEM_POPULATE).lean();
   new ApiResponse(
     200,
-    items.map((item) => ({ ...item.toObject(), order: orderById.get(String(item.order)) }))
+    items.map((item) => ({ ...item, order: orderById.get(String(item.order)) }))
   ).send(res);
 });
 
 const getOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findOne({ _id: req.params.id, customer: req.user._id }).populate({
-    path: 'items',
-    populate: ORDER_ITEM_POPULATE,
-  });
+  const order = await Order.findOne({ _id: req.params.id, customer: req.user._id })
+    .populate({ path: 'items', populate: ORDER_ITEM_POPULATE })
+    .lean();
   if (!order) throw ApiError.notFound('Order not found.');
   new ApiResponse(200, order).send(res);
 });
@@ -352,7 +352,8 @@ const listVendorOrderItems = asyncHandler(async (req, res) => {
   const items = await OrderItem.find(filter)
     .sort({ createdAt: -1 })
     .populate(ORDER_ITEM_POPULATE)
-    .populate({ path: 'order', select: 'orderNumber customer deliveryAddress placedAt', populate: { path: 'customer', select: 'name email phone' } });
+    .populate({ path: 'order', select: 'orderNumber customer deliveryAddress placedAt', populate: { path: 'customer', select: 'name email phone' } })
+    .lean();
 
   new ApiResponse(200, items).send(res);
 });

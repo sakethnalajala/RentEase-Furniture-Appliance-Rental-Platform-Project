@@ -47,7 +47,8 @@ const listProducts = asyncHandler(async (req, res) => {
       .populate('city', 'name state')
       .sort(SORTS[sort] || SORTS.newest)
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Product.countDocuments(filter),
   ]);
 
@@ -58,13 +59,14 @@ const getProductById = asyncHandler(async (req, res) => {
   const product = await Product.findOne({ _id: req.params.id, isActive: true })
     .populate('category', 'name slug')
     .populate('vendor', 'businessName averageRating')
-    .populate('city', 'name state');
+    .populate('city', 'name state')
+    .lean();
 
   if (!product) throw ApiError.notFound('Product not found.');
 
   const [rentalPlans, inventoryItem, relatedProducts] = await Promise.all([
-    RentalPlan.find({ isActive: true }).sort({ durationMonths: 1 }),
-    InventoryItem.findOne({ product: product._id }).select('serialNumber qrCodeUrl barcodeUrl status'),
+    RentalPlan.find({ isActive: true }).sort({ durationMonths: 1 }).lean(),
+    InventoryItem.findOne({ product: product._id }).select('serialNumber qrCodeUrl barcodeUrl status').lean(),
     Product.find({
       _id: { $ne: product._id },
       category: product.category._id,
@@ -72,7 +74,8 @@ const getProductById = asyncHandler(async (req, res) => {
       isActive: true,
     })
       .populate('city', 'name')
-      .limit(8),
+      .limit(8)
+      .lean(),
   ]);
 
   new ApiResponse(200, { product, rentalPlans, inventory: inventoryItem, relatedProducts }).send(res);
