@@ -39,3 +39,6 @@ backend/uploads/*
 # Misc
 *.pem
 .vercel
+
+.vercel
+.env*

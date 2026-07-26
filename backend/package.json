@@ -8,7 +8,7 @@
     "mongo": "node scripts/startMongo.js",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js",
+    "seed": "node src/seedCli.js",
     "test": "jest --runInBand"
   },
   "dependencies": {

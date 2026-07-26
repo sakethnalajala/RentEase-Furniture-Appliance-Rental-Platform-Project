@@ -1465,10 +1465,13 @@ async function seed() {
   }
 
   logger.success('Seed complete.');
-  process.exit(0);
 }
 
-seed().catch((err) => {
-  logger.error(`Seed failed: ${err.message}`);
-  process.exit(1);
-});
+// Exported rather than self-invoking so this same seed logic can be triggered two ways:
+// (1) as a one-off local/CI script via seedCli.js (`node src/seedCli.js`), which owns the
+// process.exit lifecycle, and (2) from a live request handler (routes/admin.routes.js's
+// protected POST /admin/seed) when a serverless deployment's database has never been seeded
+// and there's no shell access to run a CLI script against it directly — calling process.exit()
+// from inside a request handler would kill the whole function mid-response, so this module
+// must never do that itself.
+module.exports = seed;

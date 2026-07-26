@@ -13,6 +13,7 @@ const vendorRoutes = require('./vendor.routes');
 const notificationRoutes = require('./notification.routes');
 const orderRoutes = require('./order.routes');
 const deliveryRoutes = require('./delivery.routes');
+const systemRoutes = require('./system.routes');
 
 const router = express.Router();
 
@@ -33,6 +34,7 @@ router.use('/vendors', vendorRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/orders', orderRoutes);
 router.use('/delivery', deliveryRoutes);
+router.use('/system', systemRoutes);
 
 // Phase 3+: /rental-plans (admin CRUD; the 4 plans are seeded and read via /products/:id for now), /payments, /invoices
 // Phase 5+: /maintenance, /damage-reports
