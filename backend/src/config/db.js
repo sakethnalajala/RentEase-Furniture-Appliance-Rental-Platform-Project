@@ -16,7 +16,9 @@ async function connectDB() {
 
   mongoose.set('strictQuery', true);
   connectingPromise = mongoose
-    .connect(env.mongodbUri)
+    // dbName forces a consistent database regardless of whether the connection string's
+    // path segment is present/omitted (an omitted path defaults to a db literally named "test").
+    .connect(env.mongodbUri, { dbName: 'rentease' })
     .then(() => {
       logger.info(`MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
     })

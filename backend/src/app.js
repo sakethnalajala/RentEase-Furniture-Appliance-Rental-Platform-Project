@@ -12,6 +12,10 @@ const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 const app = express();
 
+// Vercel's edge proxy always sets X-Forwarded-For; without this, express-rate-limit
+// throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request in production.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors({ origin: env.clientUrl, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
