@@ -12,7 +12,7 @@ const HIGHLIGHTS = [
 
 function BrandPanel() {
   return (
-    <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-accent-600 lg:flex lg:w-[42%] lg:flex-col lg:justify-between lg:p-10">
+    <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-accent-600 lg:ml-6 lg:flex lg:w-[42%] lg:flex-col lg:justify-between lg:p-10 xl:ml-10">
       <div className="pointer-events-none absolute -left-16 -top-16 h-72 w-72 animate-blob rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 animate-blob rounded-full bg-white/10 blur-3xl [animation-delay:6s]" />
 
