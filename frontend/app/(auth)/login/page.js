@@ -3,40 +3,24 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, User, Building2, Truck, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, User, Building2, Truck } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import GoogleIcon from '@/components/ui/GoogleIcon';
 import DemoAccountCard from '@/components/ui/DemoAccountCard';
 import GoogleAccountPickerModal from '@/components/ui/GoogleAccountPickerModal';
+import { TwoFactorVerifyForm, TwoFactorSetupForm } from '@/components/auth/TwoFactorViews';
 import {
   useLoginMutation,
-  useVerifyLogin2FAMutation,
-  useSetup2FAMutation,
-  useEnable2FAMutation,
   useLazyListGoogleAccountsQuery,
   useSelectGoogleAccountMutation,
 } from '@/store/authApi';
-import { cancelTwoFactor } from '@/store/authSlice';
 import { DEMO_ACCOUNTS, DELIVERY_PARTNER_BY_CITY } from '@/lib/demoAccounts';
 import { getRoleHomePath } from '@/lib/roleRedirect';
-
-function BackToLoginButton() {
-  const dispatch = useDispatch();
-  return (
-    <button
-      type="button"
-      onClick={() => dispatch(cancelTwoFactor())}
-      className="focus-ring -ml-1.5 mb-4 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-    >
-      <ArrowLeft size={15} /> Back to login
-    </button>
-  );
-}
 
 const LOGIN_DEMO_ROLES = [
   { key: 'customer', label: 'Customer', icon: User },
@@ -52,7 +36,9 @@ function LoginForm({ onAuthenticated }) {
   // .js's refreshCookieOptions). Demo-tile and Google logins never set this — they always sign
   // in session-only.
   const [rememberMe, setRememberMe] = useState(false);
-  const [demoRole, setDemoRole] = useState('customer');
+  // No role pre-selected — every account-type tile starts inactive, and the demo card / manual
+  // login form below stay hidden until the user explicitly picks one.
+  const [demoRole, setDemoRole] = useState(null);
   const [login, { isLoading, error }] = useLoginMutation();
   const [demoLogin, { isLoading: isDemoLoggingIn }] = useLoginMutation();
   const [fetchGoogleAccounts, { isFetching: isLoadingGoogleAccounts }] = useLazyListGoogleAccountsQuery();
@@ -64,10 +50,11 @@ function LoginForm({ onAuthenticated }) {
   // CitySelector used everywhere else in the app) picks which city's account this resolves to,
   // falling back to Hyderabad (the original account) if none is selected yet.
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const activeDemoAccount =
-    demoRole === 'delivery_partner'
-      ? DELIVERY_PARTNER_BY_CITY[selectedCity?.name] || DELIVERY_PARTNER_BY_CITY.Hyderabad
-      : DEMO_ACCOUNTS[demoRole];
+  const activeDemoAccount = !demoRole
+    ? null
+    : demoRole === 'delivery_partner'
+    ? DELIVERY_PARTNER_BY_CITY[selectedCity?.name] || DELIVERY_PARTNER_BY_CITY.Hyderabad
+    : DEMO_ACCOUNTS[demoRole];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -166,99 +153,111 @@ function LoginForm({ onAuthenticated }) {
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`${demoRole}-${activeDemoAccount.email}`}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
+      {!demoRole ? (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-white/15 dark:text-slate-400"
         >
-          <DemoAccountCard
-            title={activeDemoAccount.label}
-            fields={activeDemoAccount.fields}
-            buttonLabel={`Login as ${activeDemoAccount.label}`}
-            loading={isDemoLoggingIn}
-            onLogin={handleDemoLogin}
-            className="mt-4"
+          Select an account type above to continue.
+        </motion.p>
+      ) : (
+        <>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${demoRole}-${activeDemoAccount.email}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <DemoAccountCard
+                title={activeDemoAccount.label}
+                fields={activeDemoAccount.fields}
+                buttonLabel={`Login as ${activeDemoAccount.label}`}
+                loading={isDemoLoggingIn}
+                onLogin={handleDemoLogin}
+                className="mt-4"
+              />
+              {demoRole === 'delivery_partner' && (
+                <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
+                  Uses your selected city ({selectedCity?.name || 'Hyderabad'}) — change city from the header above to try another city&apos;s delivery partner.
+                </p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+
+          <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+            or use your own account
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleClick}
+            disabled={isLoadingGoogleAccounts || isSelectingGoogleAccount}
+            className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 py-2.5 text-sm font-medium text-slate-700 backdrop-blur transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+          >
+            {isLoadingGoogleAccounts || isSelectingGoogleAccount ? <Spinner size="sm" /> : <GoogleIcon size={16} />}
+            Continue with Google
+          </button>
+
+          <GoogleAccountPickerModal
+            open={googlePicker.open}
+            onClose={() => setGooglePicker({ open: false, accounts: [] })}
+            accounts={googlePicker.accounts}
+            onSelect={finishGoogleLogin}
+            loading={isSelectingGoogleAccount}
           />
-          {demoRole === 'delivery_partner' && (
-            <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
-              Uses your selected city ({selectedCity?.name || 'Hyderabad'}) — change city from the header above to try another city&apos;s delivery partner.
-            </p>
-          )}
-        </motion.div>
-      </AnimatePresence>
 
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-        <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-        or use your own account
-        <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-      </div>
+          <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+            or
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+          </div>
 
-      <button
-        type="button"
-        onClick={handleGoogleClick}
-        disabled={isLoadingGoogleAccounts || isSelectingGoogleAccount}
-        className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 py-2.5 text-sm font-medium text-slate-700 backdrop-blur transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-      >
-        {isLoadingGoogleAccounts || isSelectingGoogleAccount ? <Spinner size="sm" /> : <GoogleIcon size={16} />}
-        Continue with Google
-      </button>
+          <p className="-mt-1 mb-1 text-xs text-slate-400 dark:text-slate-500">
+            Logging in as <span className="font-medium text-slate-600 dark:text-slate-300">{activeDemoAccount.label.replace('Demo ', '')}</span> — switch the tab above to change account type.
+          </p>
 
-      <GoogleAccountPickerModal
-        open={googlePicker.open}
-        onClose={() => setGooglePicker({ open: false, accounts: [] })}
-        accounts={googlePicker.accounts}
-        onSelect={finishGoogleLogin}
-        loading={isSelectingGoogleAccount}
-      />
-
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-        <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-        or
-        <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-      </div>
-
-      <p className="-mt-1 mb-1 text-xs text-slate-400 dark:text-slate-500">
-        Logging in as <span className="font-medium text-slate-600 dark:text-slate-300">{DEMO_ACCOUNTS[demoRole].label.replace('Demo ', '')}</span> — switch the tab above to change account type.
-      </p>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input
-          label="Email"
-          name="email"
-          type="email"
-          required
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        />
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          required
-          value={form.password}
-          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-        />
-        {error && <p className="text-sm text-rose-500">{error.data?.message || 'Login failed.'}</p>}
-        <div className="flex items-center justify-between">
-          <label className="flex select-none items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="focus-ring h-3.5 w-3.5 rounded border-slate-300 text-brand-600 dark:border-white/20"
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <Input
+              label="Email"
+              name="email"
+              type="email"
+              required
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
-            Remember me
-          </label>
-          <Link href="/forgot-password" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">
-            Forgot password?
-          </Link>
-        </div>
-        <Button type="submit" loading={isLoading} className="w-full">
-          Log in
-        </Button>
-      </form>
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              required
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            />
+            {error && <p className="text-sm text-rose-500">{error.data?.message || 'Login failed.'}</p>}
+            <div className="flex items-center justify-between">
+              <label className="flex select-none items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="focus-ring h-3.5 w-3.5 rounded border-slate-300 text-brand-600 dark:border-white/20"
+                />
+                Remember me
+              </label>
+              <Link href="/forgot-password" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">
+                Forgot password?
+              </Link>
+            </div>
+            <Button type="submit" loading={isLoading} className="w-full">
+              Log in
+            </Button>
+          </form>
+        </>
+      )}
 
       <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Prefer phone?{' '}
@@ -273,117 +272,6 @@ function LoginForm({ onAuthenticated }) {
         </Link>
       </p>
     </div>
-  );
-}
-
-function TwoFactorVerifyForm({ tempToken, onAuthenticated }) {
-  const [code, setCode] = useState('');
-  const [verify, { isLoading, error }] = useVerifyLogin2FAMutation();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await verify({ tempToken, code }).unwrap();
-      toast.success('Login successful.');
-      if (res.data?.user) onAuthenticated(res.data.user);
-    } catch {
-      // surfaced via `error` below
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <BackToLoginButton />
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:bg-brand-400/10 dark:text-brand-300">
-        <ShieldCheck size={20} />
-      </div>
-      <h1 className="mt-4 font-display text-2xl font-bold text-slate-900 dark:text-white">Two-factor authentication</h1>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter the 6-digit code from your authenticator app.</p>
-      <div className="mt-6">
-        <Input
-          label="Authentication code"
-          name="code"
-          inputMode="numeric"
-          maxLength={6}
-          required
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-        />
-      </div>
-      {error && <p className="mt-2 text-sm text-rose-500">{error.data?.message || 'Verification failed.'}</p>}
-      <Button type="submit" loading={isLoading} className="mt-4 w-full">
-        Verify & log in
-      </Button>
-    </form>
-  );
-}
-
-function TwoFactorSetupForm({ tempToken, onAuthenticated }) {
-  const [setup2FA, { data: setupData, isLoading: isSettingUp }] = useSetup2FAMutation();
-  const [enable2FA, { isLoading: isEnabling, error }] = useEnable2FAMutation();
-  const [code, setCode] = useState('');
-  const [currentTempToken, setCurrentTempToken] = useState(tempToken);
-
-  useEffect(() => {
-    setup2FA({ tempToken })
-      .unwrap()
-      .then((res) => setCurrentTempToken(res.data.tempToken));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await enable2FA({ tempToken: currentTempToken, code }).unwrap();
-      toast.success('Login successful.');
-      if (res.data?.user) onAuthenticated(res.data.user);
-    } catch {
-      // surfaced via `error` below
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <BackToLoginButton />
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:bg-brand-400/10 dark:text-brand-300">
-        <ShieldCheck size={20} />
-      </div>
-      <h1 className="mt-4 font-display text-2xl font-bold text-slate-900 dark:text-white">
-        Set up two-factor authentication
-      </h1>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Required for Admin accounts. Scan the QR code with an authenticator app (e.g. Google
-        Authenticator).
-      </p>
-
-      <div className="mt-6 flex justify-center">
-        {isSettingUp && <p className="text-sm text-slate-500 dark:text-slate-400">Generating your QR code…</p>}
-        {setupData?.data?.qrCodeDataUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={setupData.data.qrCodeDataUrl}
-            alt="2FA QR code"
-            className="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10"
-          />
-        )}
-      </div>
-
-      <div className="mt-6">
-        <Input
-          label="Confirm with a code"
-          name="code"
-          inputMode="numeric"
-          maxLength={6}
-          required
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-        />
-      </div>
-      {error && <p className="mt-2 text-sm text-rose-500">{error.data?.message || 'Verification failed.'}</p>}
-      <Button type="submit" loading={isEnabling} className="mt-4 w-full">
-        Enable & log in
-      </Button>
-    </form>
   );
 }
 
