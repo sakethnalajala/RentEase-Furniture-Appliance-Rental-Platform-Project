@@ -18,7 +18,19 @@ const { DEMO_ACCOUNTS } = require('../constants/demoAccounts');
 // Matches the ad-hoc accounts created by automated registration testing during development
 // (Playwright scripts, curl smoke tests) — never a genuine seed.js filler account (isDemoSeed
 // is always excluded below) and never one of the four canonical Demo Accounts.
-const TEST_PATTERNS = [/test\.com$/i, /curltest/i, /^test\s/i, /^prod\s?test/i, /^prod\s?(customer|vendor|delivery)/i, /^qa\s/i, /^debug\s/i, /^verify\s?test/i, /^temporary\s/i, /^verification\s/i];
+const TEST_PATTERNS = [
+  /test\.com$/i,
+  /curltest/i,
+  /^test\s/i,
+  /^prod\s?test/i,
+  /^prod\s?(customer|vendor|delivery)/i,
+  /^qa\s/i,
+  /^debug\s/i,
+  /^verify\s?test/i,
+  /^verify\d/i,
+  /^temporary\s/i,
+  /^verification\s/i,
+];
 
 function isTestAccount(user) {
   if (user.isDemoSeed) return false;
