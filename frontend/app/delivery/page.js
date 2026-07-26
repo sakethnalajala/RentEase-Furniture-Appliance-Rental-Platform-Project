@@ -233,7 +233,7 @@ export default function DeliveryDashboardPage() {
                 <div key={item._id} className="flex items-center gap-3 rounded-xl border border-slate-200/70 p-3 dark:border-white/10">
                   {item.product?.images?.[0] ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.product.images[0]} alt={item.product.name} className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+                    <img src={item.product.images[0]} alt={item.product.name} loading="lazy" decoding="async" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
                   ) : (
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-white/5">
                       <ImageOff size={16} />

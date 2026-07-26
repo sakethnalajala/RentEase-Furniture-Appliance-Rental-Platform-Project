@@ -1,5 +1,8 @@
 import { api } from './api';
 import { customerApi } from './customerApi';
+import { vendorApi } from './vendorApi';
+import { deliveryApi } from './deliveryApi';
+import { adminApi } from './adminApi';
 import { setCredentials, setPending2FA, setAccessToken, logout } from './authSlice';
 import { setSelectedCity } from './citySlice';
 
@@ -12,6 +15,31 @@ function prefetchCatalog(dispatch, getState) {
   const cityId = getState().city?.selectedCity?.id;
   dispatch(customerApi.util.prefetch('listCategories', undefined, { force: false }));
   dispatch(customerApi.util.prefetch('listProducts', { city: cityId, sort: 'newest', page: 1, limit: 12 }, { force: false }));
+}
+
+// Same idea as `prefetchCatalog`, extended to every role — fires each portal's own dashboard
+// queries the instant a session starts (password login, 2FA, Google/OTP, or the real OAuth
+// callback), so by the time the router lands on /vendor, /delivery, or /admin, RTK Query
+// already has the data in flight (or cached) instead of the dashboard mounting cold and
+// waiting on its own useEffect-driven fetch. `force: false` keeps this a no-op if something
+// already requested the same query with the same args.
+export function prefetchDashboard(user, dispatch, getState) {
+  const role = user?.role;
+  if (role === 'customer') {
+    prefetchCatalog(dispatch, getState);
+  } else if (role === 'vendor') {
+    dispatch(vendorApi.util.prefetch('getMyVendorProfile', undefined, { force: false }));
+    dispatch(vendorApi.util.prefetch('getMyVendorStats', undefined, { force: false }));
+    dispatch(vendorApi.util.prefetch('listMyProducts', {}, { force: false }));
+  } else if (role === 'delivery_partner') {
+    dispatch(deliveryApi.util.prefetch('getMyDeliveryProfile', undefined, { force: false }));
+    dispatch(deliveryApi.util.prefetch('listDeliveryRequests', undefined, { force: false }));
+    dispatch(deliveryApi.util.prefetch('listAssignedDeliveries', undefined, { force: false }));
+    dispatch(deliveryApi.util.prefetch('getDeliveryStats', undefined, { force: false }));
+  } else if (role === 'admin') {
+    dispatch(adminApi.util.prefetch('getAdminStats', undefined, { force: false }));
+    dispatch(adminApi.util.prefetch('listVendorApplications', { status: 'pending' }, { force: false }));
+  }
 }
 
 // Without this, a fresh login (no `rentease_city` in localStorage yet) left `city.selectedCity`
@@ -58,7 +86,7 @@ async function handleAuthResult(queryFulfilled, dispatch, getState) {
     // most of these endpoints under a single no-argument cache key.
     dispatch(api.util.resetApiState());
     await resolveSelectedCityOnLogin(payload.user, dispatch, getState);
-    if (payload.user?.role === 'customer') prefetchCatalog(dispatch, getState);
+    prefetchDashboard(payload.user, dispatch, getState);
   } else if (payload.requires2FA) {
     dispatch(setPending2FA({ tempToken: payload.tempToken, mode: 'verify' }));
   } else if (payload.requires2FASetup) {

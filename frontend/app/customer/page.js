@@ -133,7 +133,7 @@ export default function CustomerDashboardPage() {
               {wishlistItems.slice(0, 4).map((p) => (
                 <div key={p._id} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white dark:border-slate-900">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {p.images?.[0] ? <img src={p.images[0]} alt="" className="h-full w-full object-cover" /> : <ImageOff size={12} />}
+                  {p.images?.[0] ? <img src={p.images[0]} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <ImageOff size={12} />}
                 </div>
               ))}
               {wishlistItems.length === 0 && <p className="text-xs text-slate-400">Nothing saved yet</p>}
@@ -154,7 +154,7 @@ export default function CustomerDashboardPage() {
               {cartItems.slice(0, 4).map((item) => (
                 <div key={item._id} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white dark:border-slate-900">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {item.product?.images?.[0] ? <img src={item.product.images[0]} alt="" className="h-full w-full object-cover" /> : <ImageOff size={12} />}
+                  {item.product?.images?.[0] ? <img src={item.product.images[0]} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <ImageOff size={12} />}
                 </div>
               ))}
               {cartItems.length === 0 && <p className="text-xs text-slate-400">Your cart is empty</p>}

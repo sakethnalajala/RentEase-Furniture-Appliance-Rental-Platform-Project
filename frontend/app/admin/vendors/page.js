@@ -41,30 +41,30 @@ export default function VendorManagementPage() {
   const [editingVendor, setEditingVendor] = useState(null);
   const selectedCity = useSelector((state) => state.city.selectedCity);
   const { data, isLoading } = useListVendorApplicationsQuery({ status: tab, city: selectedCity?.id, search: search || undefined });
-  const [approveVendor, { isLoading: isApproving }] = useApproveVendorApplicationMutation();
-  const [rejectVendor, { isLoading: isRejecting }] = useRejectVendorApplicationMutation();
+  const [approveVendor] = useApproveVendorApplicationMutation();
+  const [rejectVendor] = useRejectVendorApplicationMutation();
   const [suspendVendor, { isLoading: isSuspending }] = useSuspendVendorApplicationMutation();
   const [reactivateVendor, { isLoading: isReactivating }] = useReactivateVendorApplicationMutation();
   const [deleteVendor, { isLoading: isDeleting }] = useAdminDeleteVendorMutation();
 
   const vendors = data?.data || [];
 
-  const handleApprove = async (id) => {
-    try {
-      await approveVendor(id).unwrap();
-      toast.success('Vendor approved successfully.');
-    } catch (err) {
-      toast.error(err?.data?.message || 'Could not approve vendor.');
-    }
+  // Fire-and-toast, not await-then-toast: the cache is already patched optimistically the
+  // moment the mutation is triggered (see adminApi.js), so the row is gone from Pending and the
+  // toast confirms it in the same tick — the backend call just settles quietly in the background.
+  // If it actually fails, the cache patch self-reverts and this shows an error toast instead.
+  const handleApprove = (id) => {
+    toast.success('Vendor approved successfully.');
+    approveVendor(id)
+      .unwrap()
+      .catch((err) => toast.error(err?.data?.message || 'Could not approve vendor — change reverted.'));
   };
 
-  const handleReject = async (id) => {
-    try {
-      await rejectVendor({ id, reason: 'Application did not meet marketplace requirements.' }).unwrap();
-      toast.success('Vendor application rejected.');
-    } catch (err) {
-      toast.error(err?.data?.message || 'Could not reject vendor.');
-    }
+  const handleReject = (id) => {
+    toast.success('Vendor application rejected.');
+    rejectVendor({ id, reason: 'Application did not meet marketplace requirements.' })
+      .unwrap()
+      .catch((err) => toast.error(err?.data?.message || 'Could not reject vendor — change reverted.'));
   };
 
   const handleSuspend = async (id) => {
@@ -169,10 +169,10 @@ export default function VendorManagementPage() {
                 <Badge variant={STATUS_BADGE[vendor.status]}>{vendor.status}</Badge>
                 {vendor.status === 'pending' && (
                   <>
-                    <Button size="sm" variant="secondary" loading={isApproving} onClick={() => handleApprove(vendor._id)}>
+                    <Button size="sm" variant="secondary" onClick={() => handleApprove(vendor._id)}>
                       <CheckCircle2 size={14} /> Approve
                     </Button>
-                    <Button size="sm" variant="ghost" loading={isRejecting} onClick={() => handleReject(vendor._id)}>
+                    <Button size="sm" variant="ghost" onClick={() => handleReject(vendor._id)}>
                       <XCircle size={14} /> Reject
                     </Button>
                   </>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { toast } from 'sonner';
 import Spinner from '@/components/ui/Spinner';
-import { authApi } from '@/store/authApi';
+import { authApi, prefetchDashboard } from '@/store/authApi';
 import { api } from '@/store/api';
 import { setAccessToken, setCredentials, setUnauthenticated } from '@/store/authSlice';
 import { getRoleHomePath } from '@/lib/roleRedirect';
@@ -38,6 +38,10 @@ function OAuthCallbackContent() {
         dispatch(api.util.resetApiState());
         const meResult = await dispatch(authApi.endpoints.getMe.initiate(undefined, { forceRefetch: true })).unwrap();
         dispatch(setCredentials({ user: meResult.data, accessToken }));
+        // Same instant-dashboard prefetch every other login path gets (see authApi.js) — without
+        // this, Google sign-in specifically was the one flow that left the destination portal to
+        // fetch everything cold after landing, which is what made it feel slower than the rest.
+        dispatch((_, getState) => prefetchDashboard(meResult.data, dispatch, getState));
         toast.success('Login successful.');
         router.replace(getRoleHomePath(meResult.data.role));
       } catch {

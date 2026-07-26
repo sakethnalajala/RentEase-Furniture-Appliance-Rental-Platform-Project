@@ -55,7 +55,7 @@ function RealOrderCard({ order }) {
       <div className="flex flex-wrap items-center gap-4">
         {product?.images?.[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.images[0]} alt={product.name} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+          <img src={product.images[0]} alt={product.name} loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
         ) : (
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/5">
             <ImageOff size={18} />

@@ -9,6 +9,59 @@ function buildQueryString(params = {}) {
   return qs ? `?${qs}` : '';
 }
 
+// Moves a vendor between the Vendor Management tabs' cached lists instantly, without waiting on
+// (or refetching after) the mutation — every currently-cached `listVendorApplications` entry
+// (one per {status, city, search} combo the admin has viewed this session) is patched directly:
+// removed from any tab that no longer matches the new status, upserted into any cached tab that
+// does. Reverted automatically if the request actually fails.
+async function optimisticVendorStatusUpdate(vendorId, newStatus, { dispatch, getState, queryFulfilled }) {
+  const patches = [];
+  let vendorSnapshot = null;
+
+  const state = getState();
+  Object.values(state.api.queries || {}).forEach((entry) => {
+    if (!entry || entry.endpointName !== 'listVendorApplications' || !entry.data) return;
+    patches.push(
+      dispatch(
+        api.util.updateQueryData('listVendorApplications', entry.originalArgs, (draft) => {
+          if (!Array.isArray(draft?.data)) return;
+          const idx = draft.data.findIndex((v) => v._id === vendorId);
+          if (idx === -1) return;
+          vendorSnapshot = vendorSnapshot || { ...draft.data[idx] };
+          const args = typeof entry.originalArgs === 'string' ? { status: entry.originalArgs } : entry.originalArgs || {};
+          if (args.status && args.status !== newStatus) {
+            draft.data.splice(idx, 1);
+          } else {
+            draft.data[idx] = { ...draft.data[idx], status: newStatus };
+          }
+        })
+      )
+    );
+  });
+
+  if (vendorSnapshot) {
+    Object.values(state.api.queries || {}).forEach((entry) => {
+      if (!entry || entry.endpointName !== 'listVendorApplications' || !entry.data) return;
+      const args = typeof entry.originalArgs === 'string' ? { status: entry.originalArgs } : entry.originalArgs || {};
+      if (args.status !== newStatus) return;
+      patches.push(
+        dispatch(
+          api.util.updateQueryData('listVendorApplications', entry.originalArgs, (draft) => {
+            if (!Array.isArray(draft?.data) || draft.data.some((v) => v._id === vendorId)) return;
+            draft.data.unshift({ ...vendorSnapshot, status: newStatus });
+          })
+        )
+      );
+    });
+  }
+
+  try {
+    await queryFulfilled;
+  } catch {
+    patches.forEach((patch) => patch.undo());
+  }
+}
+
 export const adminApi = api.injectEndpoints({
   endpoints: (builder) => ({
     // ---- Dashboard ----
@@ -53,10 +106,17 @@ export const adminApi = api.injectEndpoints({
     }),
     approveVendorApplication: builder.mutation({
       query: (id) => ({ url: `/admin/vendors/${id}/approve`, method: 'POST' }),
+      // Backend approval is genuinely slow (it awaits full demo-data generation + a synchronous
+      // email send before responding) — so the list is patched optimistically here instead of
+      // waiting on that round-trip. `invalidatesTags` is kept too, so once the slow request does
+      // resolve, a background refetch reconciles the cache with the server's authoritative state
+      // (no spinner, since `isLoading` on the list query is already false by then).
+      onQueryStarted: (id, api) => optimisticVendorStatusUpdate(id, 'approved', api),
       invalidatesTags: ['Vendors', 'AdminStats'],
     }),
     rejectVendorApplication: builder.mutation({
       query: ({ id, reason }) => ({ url: `/admin/vendors/${id}/reject`, method: 'POST', body: { reason } }),
+      onQueryStarted: ({ id }, api) => optimisticVendorStatusUpdate(id, 'rejected', api),
       invalidatesTags: ['Vendors', 'AdminStats'],
     }),
     suspendVendorApplication: builder.mutation({

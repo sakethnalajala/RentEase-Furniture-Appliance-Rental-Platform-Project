@@ -14,6 +14,9 @@ const otpService = require('../services/otpService');
 const twoFactorService = require('../services/twoFactorService');
 const notificationService = require('../services/notificationService');
 const { generateVendorDemoData } = require('../services/vendorOnboardingService');
+const { generateCustomerDemoData } = require('../services/customerOnboardingService');
+const { generateDeliveryPartnerDemoData } = require('../services/deliveryOnboardingService');
+const Notification = require('../models/Notification');
 const logger = require('../utils/logger');
 const { ROLES, ALL_ROLES, MANDATORY_2FA_ROLES } = require('../constants/roles');
 const { VENDOR_STATUS } = require('../constants/inventoryStatus');
@@ -127,7 +130,7 @@ const register = asyncHandler(async (req, res) => {
     // demo/simulated data per the product spec, since this app has no real GPS integration.
     const city = await City.findById(cityId).select('lat lng');
     const jitter = () => (Math.random() - 0.5) * 0.08; // ~± a few km at these latitudes
-    await DeliveryPartner.create({
+    const partner = await DeliveryPartner.create({
       user: user._id,
       vehicleType,
       vehicleNumber,
@@ -135,6 +138,39 @@ const register = asyncHandler(async (req, res) => {
       assignedCity: cityId,
       currentLocation: city ? { lat: city.lat + jitter(), lng: city.lng + jitter() } : undefined,
     });
+    // Same reasoning as the vendor onboarding above — a brand new partner's History/Earnings/
+    // Ratings should show real (if modest) activity from the first login, not an empty
+    // dashboard. Open delivery requests need no seeding: they're topped up per-city at runtime.
+    try {
+      await generateDeliveryPartnerDemoData(partner);
+    } catch (err) {
+      logger.error(`Delivery partner onboarding data generation failed for user ${user._id}: ${err.message}`);
+    }
+  } else if (role === ROLES.CUSTOMER) {
+    // Wishlist/Cart/Address/Order history seeded from the real product catalog in this
+    // customer's own city — same "real account, real data, non-empty from first login"
+    // treatment vendors and delivery partners already get above.
+    try {
+      await generateCustomerDemoData(user, cityId);
+    } catch (err) {
+      logger.error(`Customer onboarding data generation failed for user ${user._id}: ${err.message}`);
+    }
+  } else if (role === ROLES.ADMIN) {
+    // Admin dashboards are platform-wide (every vendor/customer/order/analytics figure is
+    // already real and non-empty regardless of which admin is looking), so there's nothing
+    // per-account to seed beyond a welcome notification for this specific new admin.
+    try {
+      await Notification.create({
+        user: user._id,
+        title: 'Welcome to RentEase Admin',
+        message: 'Your Super Administrator account is ready. You have full platform access.',
+        type: 'system',
+        channels: ['in_app'],
+        isRead: false,
+      });
+    } catch (err) {
+      logger.error(`Admin welcome notification failed for user ${user._id}: ${err.message}`);
+    }
   }
 
   if (!env.demoMode) await sendVerificationEmail(user);
@@ -420,6 +456,13 @@ const verifyPhoneOtp = asyncHandler(async (req, res) => {
       role: ROLES.CUSTOMER,
       isEmailVerified: true,
     });
+    // Same onboarding every other new customer gets (see register() above) — no city is known
+    // on this phone-only flow, so the service falls back to any active product catalog.
+    try {
+      await generateCustomerDemoData(user, null);
+    } catch (err) {
+      logger.error(`Customer onboarding data generation failed for user ${user._id}: ${err.message}`);
+    }
   }
 
   if (!user) throw ApiError.notFound('Account not found.');

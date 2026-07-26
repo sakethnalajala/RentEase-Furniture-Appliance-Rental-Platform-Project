@@ -40,7 +40,7 @@ export default function RentalHistoryPage() {
               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl">
                 {rental.product.images?.[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={rental.product.images[0]} alt={rental.product.name} className="h-full w-full object-cover" />
+                  <img src={rental.product.images[0]} alt={rental.product.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-white/5">
                     <ImageOff size={16} />
