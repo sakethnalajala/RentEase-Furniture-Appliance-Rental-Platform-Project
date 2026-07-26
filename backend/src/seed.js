@@ -1297,17 +1297,25 @@ async function seedProducts(demoVendor, extraVendors = [], cityVendorsByCity = {
   // One serialized physical unit per product — real QR/barcode images, not placeholders —
   // giving every product a genuine serial number, QR code and barcode (InventoryItem is the
   // architectural home for these per-unit fields; Product stays a pure catalog listing).
+  // Generated in parallel batches rather than one-at-a-time: at ~1000 products, a sequential
+  // await-in-a-loop here was the single biggest contributor to the seed script blowing past
+  // Vercel's serverless function timeout in production.
+  const BATCH_SIZE = 50;
   const inventoryItems = [];
-  for (const product of inserted) {
-    const assets = await generateInventoryAssets(product.sku);
-    inventoryItems.push({
-      product: product._id,
-      serialNumber: assets.serialNumber,
-      qrCodeUrl: assets.qrCodeUrl,
-      barcodeUrl: assets.barcodeUrl,
-      status: INVENTORY_STATUS.AVAILABLE,
-      city: product.city,
-      purchaseDate: new Date(),
+  for (let i = 0; i < inserted.length; i += BATCH_SIZE) {
+    const batch = inserted.slice(i, i + BATCH_SIZE);
+    const batchAssets = await Promise.all(batch.map((product) => generateInventoryAssets(product.sku)));
+    batch.forEach((product, idx) => {
+      const assets = batchAssets[idx];
+      inventoryItems.push({
+        product: product._id,
+        serialNumber: assets.serialNumber,
+        qrCodeUrl: assets.qrCodeUrl,
+        barcodeUrl: assets.barcodeUrl,
+        status: INVENTORY_STATUS.AVAILABLE,
+        city: product.city,
+        purchaseDate: new Date(),
+      });
     });
   }
   await InventoryItem.insertMany(inventoryItems);
