@@ -30,6 +30,22 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Registered custom property so the animated gradient-border's angle interpolates smoothly
+   (a real tween, not a discrete jump) — see .gradient-border-animated below. Browsers without
+   @property support (older Firefox) just render the gradient at its initial-value angle: a
+   static, still-colorful border instead of an animated one — a harmless, non-breaking fallback,
+   not a blank/broken one. */
+@property --border-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes border-spin {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
 html,
 body {
   min-height: 100%;
@@ -127,6 +143,35 @@ select option {
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
+  }
+
+  /* Slowly-rotating gradient-outline border — same padding-box/border-box mask trick as
+     .gradient-border above, but the conic-gradient's angle continuously animates via
+     --border-angle, so a soft band of light appears to sweep around the edge. Used for the
+     premium login/register branding panel frame; deliberately slow (7s/rotation) to read as
+     elegant ambient motion rather than a distracting spinner. */
+  .gradient-border-animated {
+    position: relative;
+  }
+  .gradient-border-animated::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--border-angle),
+      theme('colors.brand.300'),
+      theme('colors.accent.400'),
+      theme('colors.brand.500'),
+      theme('colors.accent.300'),
+      theme('colors.brand.300')
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: border-spin 7s linear infinite;
   }
 
   /* A soft radial spotlight that tracks the cursor — position driven by --mx/--my custom
