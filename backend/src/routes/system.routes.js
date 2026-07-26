@@ -3,7 +3,6 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const seed = require('../seed');
-const { cleanupTestAccounts } = require('../scripts/cleanupTestAccounts');
 
 const router = express.Router();
 
@@ -23,23 +22,6 @@ router.post(
 
     await seed();
     new ApiResponse(200, null, 'Seed complete.').send(res);
-  })
-);
-
-// One-off cleanup of ad-hoc test/QA accounts (Playwright/curl registrations created during
-// development), reachable the same way /seed is for the same reason — no shell access to a
-// serverless deployment's own database. Same secret, same guard rationale. Never touches
-// seed.js-authored demo/filler data or the four canonical Demo Accounts (see
-// scripts/cleanupTestAccounts.js). Pass `?dryRun=true` to preview without deleting.
-router.post(
-  '/cleanup-test-accounts',
-  asyncHandler(async (req, res) => {
-    const configuredSecret = process.env.CLEANUP_SECRET;
-    if (!configuredSecret) throw ApiError.notFound('Not found.');
-    if (req.get('x-cleanup-secret') !== configuredSecret) throw ApiError.notFound('Not found.');
-
-    const summary = await cleanupTestAccounts({ dryRun: req.query.dryRun === 'true' });
-    new ApiResponse(200, summary, 'Cleanup complete.').send(res);
   })
 );
 
