@@ -144,6 +144,13 @@ function ActionButton({ icon: Icon, label, onClick, loading }) {
 
 const currency = (n) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 
+// Premium executive/"digital operations center" hero background — used whenever the admin
+// hasn't uploaded their own cover image. Free-to-use Unsplash photo (standard license, no
+// attribution required), sized and format-negotiated (auto=format lets the CDN serve WebP/AVIF
+// to browsers that support it) rather than pulling the full-resolution original.
+const DEFAULT_ADMIN_COVER_IMAGE =
+  'https://images.unsplash.com/photo-1754039984985-ef607d80113a?q=75&w=1600&auto=format&fit=crop';
+
 export default function AdminProfilePage() {
   const router = useRouter();
   const avatarInputRef = useRef(null);
@@ -176,12 +183,21 @@ export default function AdminProfilePage() {
   const [form, setForm] = useState({ name: '', phone: '' });
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
+  // Defensive fallback in case the external default cover image can't load (offline, ad-blocker,
+  // CDN hiccup) — drops back to the old CSS-only gradient/grid/blob treatment rather than a
+  // broken-image icon. Reset whenever the image source itself changes (e.g. admin uploads their
+  // own cover after this had already failed once).
+  const [coverImageFailed, setCoverImageFailed] = useState(false);
 
   const profile = meData?.data;
 
   useEffect(() => {
     if (profile) setForm({ name: profile.name || '', phone: profile.phone || '' });
   }, [profile?.name, profile?.phone]);
+
+  useEffect(() => {
+    setCoverImageFailed(false);
+  }, [profile?.coverImage]);
 
   const stats = statsData?.data;
   const analytics = analyticsData?.data;
@@ -191,6 +207,7 @@ export default function AdminProfilePage() {
   const rejectedPartnersCount = rejectedPartnersData?.data?.length || 0;
   const recentOrders = recentOrdersData?.data?.items || [];
   const todayOverview = todayData?.data?.overview;
+  const coverImageSrc = profile?.coverImage || DEFAULT_ADMIN_COVER_IMAGE;
 
   // Real month-over-month growth from the same monthly order-count trend the Analytics page
   // charts — the last two entries in `trends.orders` are the two most recent months.
@@ -302,27 +319,38 @@ export default function AdminProfilePage() {
       {/* ================= PREMIUM HERO ================= */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <div className="gradient-border-animated relative overflow-hidden rounded-3xl">
-          {/* Cover / background */}
-          <div
-            className="relative h-44 w-full bg-cover bg-center sm:h-56"
-            style={
-              profile?.coverImage
-                ? { backgroundImage: `url(${profile.coverImage})` }
-                : undefined
-            }
-          >
-            {/* Rich fallback when no cover image has been uploaded: layered gradient + soft
-                floating glow blobs + a subtle grid pattern for a "corporate tech" feel. */}
-            {!profile?.coverImage && (
+          {/* Cover / background — a real <img> (not a CSS background) so it can genuinely
+              lazy-load and use object-fit: cover without stretching, per the executive-hero
+              spec. Admin's own uploaded cover (once set) always takes priority over the
+              default premium background below. */}
+          <div className="relative h-44 w-full overflow-hidden sm:h-56">
+            {!coverImageFailed ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverImageSrc}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onError={() => setCoverImageFailed(true)}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              /* Last-resort fallback if even the default image can't load (offline, blocked,
+                 CDN hiccup) — the original layered gradient + glow blobs + grid pattern, so
+                 this never degrades to a broken-image icon or blank box. */
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-brand-900 to-accent-900">
                 <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:28px_28px]" />
                 <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 animate-blob rounded-full bg-brand-500/30 blur-3xl" />
                 <div className="pointer-events-none absolute -right-10 bottom-0 h-64 w-64 animate-blob rounded-full bg-accent-500/30 blur-3xl [animation-delay:6s]" />
               </div>
             )}
-            {/* Glassmorphism overlay so the identity row below always reads clearly regardless
-                of the cover image's own colors. */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
+
+            {/* Uniform ~50% dark overlay (within the requested 40-60% range) plus a touch of
+                blur, so the upload button and identity panel below always read clearly
+                regardless of how bright the underlying photo is — then an extra fade right at
+                the bottom edge so the image blends smoothly into the glass panel beneath it. */}
+            <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" />
+            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-b from-transparent to-slate-950/60" />
 
             <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange('coverImage')} />
             <motion.button
