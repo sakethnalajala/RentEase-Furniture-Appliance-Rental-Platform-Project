@@ -1399,32 +1399,6 @@ async function seed() {
       }
     }
 
-    // Real Orders/Rentals spanning the FULL status range in every city (not just Hyderabad),
-    // using each city's own generated customers/vendor-products/delivery-partners — this is
-    // what keeps the Admin Orders/Rentals portals from being empty outside Hyderabad.
-    if (rentalPlans.length) {
-      let totalCityOrders = 0;
-      for (const cityName of Object.keys(citiesByName)) {
-        const city = citiesByName[cityName];
-        const cityProducts = insertedProducts.filter((p) => String(p.city) === String(city._id));
-        // Headline account first (when one exists for this city) so it wins the early scenario
-        // slots in buildCityOrderScenarios — Hyderabad has none here (it's handled separately by
-        // seedDemoOrders above), so this is a no-op for Hyderabad.
-        const cityPartners = [headlinePartners[cityName]?.partner, ...(cityDeliveryPartners[cityName] || [])].filter(Boolean);
-        const cityCustomerPool = cityCustomers[cityName] || [];
-        const seededHere = await seedCityOrders({
-          city,
-          cityName,
-          products: cityProducts,
-          deliveryPartners: cityPartners,
-          customers: cityCustomerPool,
-          rentalPlans,
-        });
-        totalCityOrders += seededHere;
-      }
-      logger.success(`Seeded ${totalCityOrders} additional orders/rentals spanning the full status range across ${Object.keys(citiesByName).length} cities.`);
-    }
-
     // Real DeliveryPartner.averageRating, computed from the actual OrderItem.deliveryRating
     // values assigned above (DELIVERY_REVIEWS ratings genuinely vary 3-5 star) — every partner's
     // rating now reflects their own real delivered-order history instead of a stored field that
@@ -1435,6 +1409,13 @@ async function seed() {
     // identical (0) instead of genuinely different. Runs over every seeded order in one pass, so
     // it corrects headline accounts, the original Hyderabad account, and the scale-generated
     // partner pool alike, replacing whatever fake/absent value each had before.
+    //
+    // Deliberately positioned BEFORE seedCityOrders below: this and the notifications block are
+    // cheap (a handful of ops) while seedCityOrders is the single most expensive remaining step
+    // (hundreds of sequential per-order writes across 4 cities) and the one most likely to run
+    // this serverless invocation past its time budget — so anything that must not be skipped by
+    // that goes first. Only misses seedCityOrders' own rating contributions when it does complete
+    // in time, which is an acceptable trade for guaranteeing this always runs at all.
     const ratingAgg = await OrderItem.aggregate([
       { $match: { deliveryPartner: { $ne: null }, deliveryRating: { $ne: null } } },
       { $group: { _id: '$deliveryPartner', avg: { $avg: '$deliveryRating' } } },
@@ -1458,6 +1439,33 @@ async function seed() {
       notifiedPartners++;
     }
     if (notifiedPartners) logger.success(`Seeded notifications for ${notifiedPartners} headline delivery partner accounts.`);
+
+    // Real Orders/Rentals spanning the FULL status range in every city (not just Hyderabad),
+    // using each city's own generated customers/vendor-products/delivery-partners — this is
+    // what keeps the Admin Orders/Rentals portals from being empty outside Hyderabad. Positioned
+    // last among the order-seeding steps (see comment above) since it's the most expensive.
+    if (rentalPlans.length) {
+      let totalCityOrders = 0;
+      for (const cityName of Object.keys(citiesByName)) {
+        const city = citiesByName[cityName];
+        const cityProducts = insertedProducts.filter((p) => String(p.city) === String(city._id));
+        // Headline account first (when one exists for this city) so it wins the early scenario
+        // slots in buildCityOrderScenarios — Hyderabad has none here (it's handled separately by
+        // seedDemoOrders above), so this is a no-op for Hyderabad.
+        const cityPartners = [headlinePartners[cityName]?.partner, ...(cityDeliveryPartners[cityName] || [])].filter(Boolean);
+        const cityCustomerPool = cityCustomers[cityName] || [];
+        const seededHere = await seedCityOrders({
+          city,
+          cityName,
+          products: cityProducts,
+          deliveryPartners: cityPartners,
+          customers: cityCustomerPool,
+          rentalPlans,
+        });
+        totalCityOrders += seededHere;
+      }
+      logger.success(`Seeded ${totalCityOrders} additional orders/rentals spanning the full status range across ${Object.keys(citiesByName).length} cities.`);
+    }
 
     // Pre-populate the open Delivery Requests pool immediately in every city that has delivery
     // partners (the same generator also tops this back up at runtime whenever a delivery
