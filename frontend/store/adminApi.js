@@ -15,10 +15,12 @@ export const adminApi = api.injectEndpoints({
     getAdminStats: builder.query({
       query: (params) => `/admin/stats${buildQueryString(params)}`,
       providesTags: ['AdminStats'],
+      keepUnusedDataFor: 180,
     }),
     getAdminAnalytics: builder.query({
       query: (params) => `/admin/analytics${buildQueryString(params)}`,
       providesTags: ['AdminStats'],
+      keepUnusedDataFor: 180,
     }),
 
     // ---- Vendor management ----
@@ -30,14 +32,17 @@ export const adminApi = api.injectEndpoints({
         return `/admin/vendors${buildQueryString(normalized)}`;
       },
       providesTags: ['Vendors'],
+      keepUnusedDataFor: 300,
     }),
     getVendorApplication: builder.query({
       query: (id) => `/admin/vendors/${id}`,
       providesTags: ['Vendors'],
+      keepUnusedDataFor: 300,
     }),
     getVendorPerformance: builder.query({
       query: (id) => `/admin/vendors/${id}/performance`,
       providesTags: ['Vendors'],
+      keepUnusedDataFor: 300,
     }),
     approveVendorApplication: builder.mutation({
       query: (id) => ({ url: `/admin/vendors/${id}/approve`, method: 'POST' }),
@@ -68,10 +73,12 @@ export const adminApi = api.injectEndpoints({
     adminListProducts: builder.query({
       query: (params) => `/admin/products${buildQueryString(params)}`,
       providesTags: ['AdminProducts'],
+      keepUnusedDataFor: 300,
     }),
     adminGetProduct: builder.query({
       query: (id) => `/admin/products/${id}`,
       providesTags: ['AdminProducts'],
+      keepUnusedDataFor: 300,
     }),
     adminCreateProduct: builder.mutation({
       query: (body) => ({ url: '/admin/products', method: 'POST', body }),
@@ -94,6 +101,7 @@ export const adminApi = api.injectEndpoints({
     adminListCategories: builder.query({
       query: () => '/admin/categories',
       providesTags: ['AdminCategories'],
+      keepUnusedDataFor: 3600,
     }),
     adminCreateCategory: builder.mutation({
       query: (body) => ({ url: '/admin/categories', method: 'POST', body }),
@@ -112,26 +120,31 @@ export const adminApi = api.injectEndpoints({
     adminGetInventoryOverview: builder.query({
       query: (params) => `/admin/inventory${buildQueryString(params)}`,
       providesTags: ['AdminInventory'],
+      keepUnusedDataFor: 300,
     }),
 
     // ---- Customer management ----
     adminListCustomers: builder.query({
       query: (params) => `/admin/customers${buildQueryString(params)}`,
       providesTags: ['AdminCustomers'],
+      keepUnusedDataFor: 300,
     }),
     adminGetCustomer: builder.query({
       query: (id) => `/admin/customers/${id}`,
       providesTags: ['AdminCustomers'],
+      keepUnusedDataFor: 300,
     }),
 
     // ---- Delivery partner management ----
     adminListDeliveryPartners: builder.query({
       query: (params) => `/admin/delivery-partners${buildQueryString(params)}`,
       providesTags: ['AdminDeliveryPartners'],
+      keepUnusedDataFor: 300,
     }),
     adminGetDeliveryPartner: builder.query({
       query: (id) => `/admin/delivery-partners/${id}`,
       providesTags: ['AdminDeliveryPartners'],
+      keepUnusedDataFor: 300,
     }),
     approveDeliveryPartner: builder.mutation({
       query: (id) => ({ url: `/admin/delivery-partners/${id}/approve`, method: 'POST' }),
@@ -162,20 +175,24 @@ export const adminApi = api.injectEndpoints({
     adminListOrders: builder.query({
       query: (params) => `/admin/orders${buildQueryString(params)}`,
       providesTags: ['AdminOrders'],
+      keepUnusedDataFor: 180,
     }),
     adminListRentals: builder.query({
       query: (params) => `/admin/rentals${buildQueryString(params)}`,
       providesTags: ['AdminOrders'],
+      keepUnusedDataFor: 180,
     }),
 
     // ---- Payments ----
     adminListPayments: builder.query({
       query: (params) => `/admin/payments${buildQueryString(params)}`,
       providesTags: ['AdminPayments'],
+      keepUnusedDataFor: 180,
     }),
     adminGetPaymentsSummary: builder.query({
       query: (params) => `/admin/payments/summary${buildQueryString(params)}`,
       providesTags: ['AdminPayments'],
+      keepUnusedDataFor: 180,
     }),
 
     // ---- Notifications ----
@@ -187,6 +204,7 @@ export const adminApi = api.injectEndpoints({
     adminGetSettings: builder.query({
       query: () => '/admin/settings',
       providesTags: ['AdminSettings'],
+      keepUnusedDataFor: 3600,
     }),
     adminUpdateSettings: builder.mutation({
       query: (body) => ({ url: '/admin/settings', method: 'PATCH', body }),
@@ -195,6 +213,7 @@ export const adminApi = api.injectEndpoints({
     adminListRentalPlans: builder.query({
       query: () => '/admin/rental-plans',
       providesTags: ['AdminRentalPlans'],
+      keepUnusedDataFor: 3600,
     }),
     adminUpsertRentalPlan: builder.mutation({
       query: (body) => ({ url: '/admin/rental-plans', method: 'PUT', body }),

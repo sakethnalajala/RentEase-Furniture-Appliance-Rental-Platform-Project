@@ -50,21 +50,30 @@ function AuthActions({ onNavigate }) {
       <Link href="/login" onClick={onNavigate}>
         {/* `secondary` is the glass-styled variant (translucent + blurred, matching the rest
             of this app's glassmorphism language) — previously `ghost` (plain, no container),
-            which read as visually lighter-weight than Sign Up rather than its equal. Gains a
-            soft glow + ring exactly when /login is the active route. */}
+            which read as visually lighter-weight than Sign Up rather than its equal. When
+            /login is the active route: a brighter brand-tinted background (not just a border),
+            a colored border/ring, and a soft glow — Button's own transition-all already covers
+            background+border+shadow smoothly, so this needs no extra transition classes here. */}
         <Button
           variant="secondary"
           size="sm"
-          className={`transition-shadow duration-300 ${isLoginActive ? 'shadow-glow ring-1 ring-brand-400/60 dark:ring-brand-300/50' : ''}`}
+          className={
+            isLoginActive
+              ? '!border-brand-400/70 !bg-brand-500/10 text-brand-700 shadow-glow ring-1 ring-brand-400/60 dark:!border-brand-300/40 dark:!bg-brand-400/15 dark:text-brand-200 dark:ring-brand-300/50'
+              : ''
+          }
         >
           Log in
         </Button>
       </Link>
       <Link href="/register" onClick={onNavigate}>
+        {/* Sign Up is already a solid brand-gradient button; "active" swaps in the same
+            brighter gradient stops the hover state already uses, plus the same glow + ring
+            language as Log In above, so both read as one consistent active-state system. */}
         <Button
           variant="primary"
           size="sm"
-          className={`transition-shadow duration-300 ${isRegisterActive ? 'shadow-glow ring-1 ring-white/50' : ''}`}
+          className={isRegisterActive ? '!from-brand-500 !to-brand-400 shadow-glow ring-1 ring-white/50' : ''}
         >
           Sign up
         </Button>

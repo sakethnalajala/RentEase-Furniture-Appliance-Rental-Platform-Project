@@ -20,14 +20,21 @@ export const orderApi = api.injectEndpoints({
     listMyOrders: builder.query({
       query: () => '/orders/my',
       providesTags: ['MyOrders'],
+      // Tag invalidation (checkout/cancel above) already forces a refetch the moment this
+      // session's own orders actually change, so a longer cache lifetime only ever helps —
+      // navigating back to Orders/Rentals within a few minutes is instant instead of an
+      // unnecessary reload of data nothing has touched.
+      keepUnusedDataFor: 300,
     }),
     listMyOrderItems: builder.query({
       query: (params) => `/orders/my/items${buildQueryString(params)}`,
       providesTags: ['MyOrders'],
+      keepUnusedDataFor: 300,
     }),
     getOrder: builder.query({
       query: (id) => `/orders/${id}`,
       providesTags: ['MyOrders'],
+      keepUnusedDataFor: 300,
     }),
     cancelOrderItem: builder.mutation({
       query: ({ itemId, reason }) => ({ url: `/orders/items/${itemId}/cancel`, method: 'POST', body: { reason } }),
@@ -38,6 +45,7 @@ export const orderApi = api.injectEndpoints({
     listVendorOrderItems: builder.query({
       query: (params) => `/orders/vendor/my${buildQueryString(params)}`,
       providesTags: ['VendorOrders'],
+      keepUnusedDataFor: 300,
     }),
     updateVendorItemStatus: builder.mutation({
       query: ({ itemId, action, note }) => ({

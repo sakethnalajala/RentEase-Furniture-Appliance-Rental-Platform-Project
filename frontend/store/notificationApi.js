@@ -5,10 +5,12 @@ export const notificationApi = api.injectEndpoints({
     listNotifications: builder.query({
       query: () => '/notifications',
       providesTags: ['Notifications'],
+      keepUnusedDataFor: 180,
     }),
     getUnreadNotificationCount: builder.query({
       query: () => '/notifications/unread-count',
       providesTags: ['Notifications'],
+      keepUnusedDataFor: 180,
     }),
     markNotificationRead: builder.mutation({
       query: (id) => ({ url: `/notifications/${id}/read`, method: 'PATCH' }),

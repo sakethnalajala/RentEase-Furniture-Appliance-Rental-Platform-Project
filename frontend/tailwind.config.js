@@ -75,12 +75,20 @@ module.exports = {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
         },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         blob: 'blob 14s infinite ease-in-out',
         float: 'float 6s ease-in-out infinite',
         shimmer: 'shimmer 1.6s infinite',
         'gradient-shift': 'gradient-shift 8s ease infinite',
+        // Route-level loading screens (see components/ui/PortalLoading.js) fade in rather than
+        // snapping into view — a plain CSS animation (no framer-motion) so the very first paint
+        // of a route transition stays as cheap/fast as possible.
+        'fade-in': 'fade-in 0.35s ease-out',
       },
       backdropBlur: {
         xs: '2px',

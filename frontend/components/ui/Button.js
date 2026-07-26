@@ -38,7 +38,7 @@ export default function Button({
       whileTap={disabled || loading ? undefined : { scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       className={`focus-ring inline-flex items-center justify-center gap-2 rounded-xl font-medium
-        transition-[background,box-shadow,color] duration-200
+        transition-all duration-200
         disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none
         ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}

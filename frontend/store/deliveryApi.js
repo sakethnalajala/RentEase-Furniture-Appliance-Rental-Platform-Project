@@ -5,6 +5,7 @@ export const deliveryApi = api.injectEndpoints({
     getMyDeliveryProfile: builder.query({
       query: () => '/delivery/me',
       providesTags: ['DeliveryProfile'],
+      keepUnusedDataFor: 300,
     }),
     updateMyDeliveryProfile: builder.mutation({
       query: (body) => ({ url: '/delivery/me', method: 'PATCH', body }),
@@ -26,6 +27,7 @@ export const deliveryApi = api.injectEndpoints({
     listDeliveryRequests: builder.query({
       query: () => '/delivery/requests',
       providesTags: ['DeliveryRequests'],
+      keepUnusedDataFor: 120,
     }),
     acceptDeliveryRequest: builder.mutation({
       query: (itemId) => ({ url: `/delivery/requests/${itemId}/accept`, method: 'POST' }),
@@ -39,6 +41,7 @@ export const deliveryApi = api.injectEndpoints({
     listAssignedDeliveries: builder.query({
       query: () => '/delivery/assigned',
       providesTags: ['DeliveryAssigned'],
+      keepUnusedDataFor: 120,
     }),
     // Reject a delivery already accepted but not yet picked up — fully cancels it (does not
     // reopen it as a request for other partners), distinct from rejectDeliveryRequest above
@@ -59,12 +62,15 @@ export const deliveryApi = api.injectEndpoints({
     listDeliveryHistory: builder.query({
       query: () => '/delivery/history',
       providesTags: ['DeliveryHistory'],
+      keepUnusedDataFor: 300,
     }),
     getDeliveryEarnings: builder.query({
       query: () => '/delivery/earnings',
+      keepUnusedDataFor: 300,
     }),
     getDeliveryStats: builder.query({
       query: () => '/delivery/stats',
+      keepUnusedDataFor: 300,
     }),
   }),
 });
