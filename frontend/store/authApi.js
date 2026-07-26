@@ -142,6 +142,10 @@ export const authApi = api.injectEndpoints({
       query: (body) => ({ url: '/users/me', method: 'PATCH', body }),
       invalidatesTags: ['Me'],
     }),
+    uploadUserImage: builder.mutation({
+      query: ({ type, formData }) => ({ url: `/users/me/image?type=${type}`, method: 'POST', body: formData }),
+      invalidatesTags: ['Me'],
+    }),
     selectCity: builder.mutation({
       query: (body) => ({ url: '/users/me/city', method: 'PATCH', body }),
       invalidatesTags: ['Me'],
@@ -187,6 +191,7 @@ export const {
   useGetMeQuery,
   useLazyGetMeQuery,
   useUpdateProfileMutation,
+  useUploadUserImageMutation,
   useSelectCityMutation,
   useListCitiesQuery,
   useChangePasswordMutation,

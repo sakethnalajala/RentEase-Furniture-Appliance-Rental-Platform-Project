@@ -12,6 +12,13 @@ function buildQueryString(params = {}) {
 export const adminApi = api.injectEndpoints({
   endpoints: (builder) => ({
     // ---- Dashboard ----
+    // Public, unauthenticated endpoint — reused here (not just for uptime monitoring) to power
+    // the Admin Profile's "System Health" panel with a genuinely live signal instead of a
+    // hardcoded "Operational" label.
+    getSystemHealth: builder.query({
+      query: () => '/health',
+      keepUnusedDataFor: 30,
+    }),
     getAdminStats: builder.query({
       query: (params) => `/admin/stats${buildQueryString(params)}`,
       providesTags: ['AdminStats'],
@@ -227,6 +234,7 @@ export const adminApi = api.injectEndpoints({
 });
 
 export const {
+  useGetSystemHealthQuery,
   useGetAdminStatsQuery,
   useGetAdminAnalyticsQuery,
   useListVendorApplicationsQuery,

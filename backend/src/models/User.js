@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema(
     googleId: { type: String, unique: true, sparse: true },
 
     avatar: { type: String, default: '' },
+    // Profile hero background — currently only surfaced on the Admin Profile page, but kept on
+    // the base User (not Admin-specific) since any role could reasonably want one later.
+    coverImage: { type: String, default: '' },
 
     isEmailVerified: { type: Boolean, default: false },
     emailVerificationTokenHash: { type: String, select: false },

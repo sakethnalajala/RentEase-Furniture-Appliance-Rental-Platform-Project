@@ -5,6 +5,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const User = require('../models/User');
 const City = require('../models/City');
 const tokenService = require('../services/tokenService');
+const { buildFileUrl } = require('../utils/fileUrl');
 const { REFRESH_COOKIE_NAME, refreshCookieOptions } = require('../controllers/auth.controller');
 
 const toSafeUser = (user) => ({
@@ -14,11 +15,13 @@ const toSafeUser = (user) => ({
   phone: user.phone,
   role: user.role,
   avatar: user.avatar,
+  coverImage: user.coverImage,
   isEmailVerified: user.isEmailVerified,
   twoFactorEnabled: user.twoFactor?.enabled || false,
   selectedCity: user.selectedCity,
   kyc: user.kyc,
   createdAt: user.createdAt,
+  lastLoginAt: user.lastLoginAt,
 });
 
 const getMe = asyncHandler(async (req, res) => {
@@ -41,6 +44,23 @@ const updateProfile = asyncHandler(async (req, res) => {
   await user.save();
 
   new ApiResponse(200, toSafeUser(user), 'Profile updated.').send(res);
+});
+
+const IMAGE_FIELDS = ['avatar', 'coverImage'];
+
+// One endpoint for both of the base User's own image slots (?type=avatar|coverImage) — same
+// shape as vendor.controller.js's uploadImage, reused here for the Admin Profile hero's cover
+// image and avatar upload buttons.
+const uploadImage = asyncHandler(async (req, res) => {
+  if (!req.file) throw ApiError.badRequest('No file uploaded.');
+  const type = req.query.type;
+  if (!IMAGE_FIELDS.includes(type)) throw ApiError.badRequest(`type must be one of: ${IMAGE_FIELDS.join(', ')}.`);
+
+  const user = await User.findById(req.user._id);
+  user[type] = buildFileUrl(req, req.file);
+  await user.save();
+
+  new ApiResponse(200, toSafeUser(user), 'Image updated.').send(res);
 });
 
 const selectCity = asyncHandler(async (req, res) => {
@@ -88,4 +108,4 @@ const deactivateAccount = asyncHandler(async (req, res) => {
   new ApiResponse(200, null, 'Account deactivated.').send(res);
 });
 
-module.exports = { getMe, updateProfile, selectCity, changePassword, deactivateAccount };
+module.exports = { getMe, updateProfile, uploadImage, selectCity, changePassword, deactivateAccount };
