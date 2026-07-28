@@ -29,18 +29,18 @@ const DEMO_CUSTOMERS = [
 const DEMO_DELIVERY_PARTNERS = [
   { name: 'Suresh Yadav', vehicleType: 'bike', vehicleNumber: 'TS09CD5678', licenseNumber: 'DL2020IN0045', rating: 4.8, joinDaysAgo: 420, isAvailable: true, isOnline: true },
   { name: 'Ramesh Naidu', vehicleType: 'van', vehicleNumber: 'TS10EF9012', licenseNumber: 'DL2019IN0132', rating: 4.5, joinDaysAgo: 610, isAvailable: true, isOnline: true },
-  { name: 'Anjali Deshmukh', vehicleType: 'bike', vehicleNumber: 'TS07GH3456', licenseNumber: 'DL2021IN0287', rating: 4.9, joinDaysAgo: 250, isAvailable: true, isOnline: true },
+  { name: 'Arvind Deshmukh', vehicleType: 'bike', vehicleNumber: 'TS07GH3456', licenseNumber: 'DL2021IN0287', rating: 4.9, joinDaysAgo: 250, isAvailable: true, isOnline: true },
   { name: 'Vikram Chauhan', vehicleType: 'truck', vehicleNumber: 'TS08IJ7890', licenseNumber: 'DL2018IN0069', rating: 4.3, joinDaysAgo: 780, isAvailable: false, isOnline: true },
   { name: 'Manoj Tiwari', vehicleType: 'bike', vehicleNumber: 'TS11KL2345', licenseNumber: 'DL2021IN0311', rating: 4.6, joinDaysAgo: 190, isAvailable: true, isOnline: true },
-  { name: 'Sunita Rathore', vehicleType: 'bike', vehicleNumber: 'TS12MN6789', licenseNumber: 'DL2022IN0402', rating: 4.7, joinDaysAgo: 140, isAvailable: true, isOnline: true },
+  { name: 'Rajesh Rathore', vehicleType: 'bike', vehicleNumber: 'TS12MN6789', licenseNumber: 'DL2022IN0402', rating: 4.7, joinDaysAgo: 140, isAvailable: true, isOnline: true },
   { name: 'Farooq Sheikh', vehicleType: 'van', vehicleNumber: 'TS13OP0123', licenseNumber: 'DL2019IN0198', rating: 4.4, joinDaysAgo: 520, isAvailable: false, isOnline: false },
-  { name: 'Geeta Kulkarni', vehicleType: 'bike', vehicleNumber: 'TS14QR4567', licenseNumber: 'DL2022IN0455', rating: 4.9, joinDaysAgo: 95, isAvailable: true, isOnline: true },
+  { name: 'Mahesh Kulkarni', vehicleType: 'bike', vehicleNumber: 'TS14QR4567', licenseNumber: 'DL2022IN0455', rating: 4.9, joinDaysAgo: 95, isAvailable: true, isOnline: true },
   { name: 'Ravindra Pawar', vehicleType: 'truck', vehicleNumber: 'TS15ST8901', licenseNumber: 'DL2018IN0087', rating: 4.2, joinDaysAgo: 860, isAvailable: true, isOnline: false },
-  { name: 'Meenakshi Iyer', vehicleType: 'bike', vehicleNumber: 'TS16UV2345', licenseNumber: 'DL2021IN0329', rating: 4.8, joinDaysAgo: 300, isAvailable: true, isOnline: true },
+  { name: 'Karthik Iyer', vehicleType: 'bike', vehicleNumber: 'TS16UV2345', licenseNumber: 'DL2021IN0329', rating: 4.8, joinDaysAgo: 300, isAvailable: true, isOnline: true },
   { name: 'Zubair Ahmed', vehicleType: 'van', vehicleNumber: 'TS17WX6789', licenseNumber: 'DL2020IN0156', rating: 4.5, joinDaysAgo: 470, isAvailable: false, isOnline: true },
-  { name: 'Lakshmi Prasad', vehicleType: 'bike', vehicleNumber: 'TS18YZ0123', licenseNumber: 'DL2022IN0488', rating: 4.7, joinDaysAgo: 75, isAvailable: true, isOnline: true },
+  { name: 'Vijay Prasad', vehicleType: 'bike', vehicleNumber: 'TS18YZ0123', licenseNumber: 'DL2022IN0488', rating: 4.7, joinDaysAgo: 75, isAvailable: true, isOnline: true },
   { name: 'Harpreet Singh', vehicleType: 'truck', vehicleNumber: 'TS19AB4567', licenseNumber: 'DL2019IN0221', rating: 4.3, joinDaysAgo: 640, isAvailable: true, isOnline: false },
-  { name: 'Divya Chandran', vehicleType: 'bike', vehicleNumber: 'TS20CD8901', licenseNumber: 'DL2022IN0512', rating: 4.9, joinDaysAgo: 55, isAvailable: true, isOnline: true },
+  { name: 'Anand Chandran', vehicleType: 'bike', vehicleNumber: 'TS20CD8901', licenseNumber: 'DL2022IN0512', rating: 4.9, joinDaysAgo: 55, isAvailable: true, isOnline: true },
 ].map((p, i) => {
   const slug = p.name.toLowerCase().replace(/\s+/g, '.');
   return {

@@ -22,6 +22,7 @@ import {
   useGetDeliveryStatsQuery,
 } from '@/store/deliveryApi';
 import { statusLabel, isToday, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 function StatCard({ icon: Icon, label, value, sub, accent }) {
   return (
@@ -39,7 +40,7 @@ function StatCard({ icon: Icon, label, value, sub, accent }) {
 export default function DeliveryDashboardPage() {
   const { data: profileData, isLoading: profileLoading } = useGetMyDeliveryProfileQuery();
   const [updateAvailability, { isLoading: isTogglingAvailability }] = useUpdateAvailabilityMutation();
-  const { data: requestsData, isLoading: requestsLoading } = useListDeliveryRequestsQuery();
+  const { data: requestsData, isLoading: requestsLoading } = useListDeliveryRequestsQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const { data: assignedData, isLoading: assignedLoading } = useListAssignedDeliveriesQuery();
   const { data: historyData } = useListDeliveryHistoryQuery();
   const { data: earningsData, isLoading: earningsLoading } = useGetDeliveryEarningsQuery();

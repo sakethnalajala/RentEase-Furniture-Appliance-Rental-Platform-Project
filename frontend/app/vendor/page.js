@@ -13,6 +13,7 @@ import Badge from '@/components/ui/Badge';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useGetMyVendorProfileQuery, useGetMyVendorStatsQuery, useListMyProductsQuery } from '@/store/vendorApi';
 import { buildVendorOrders } from '@/lib/mockVendorData';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 function StatCard({ icon: Icon, label, value, sub, accent }) {
   return (
@@ -30,7 +31,7 @@ function StatCard({ icon: Icon, label, value, sub, accent }) {
 export default function VendorDashboardPage() {
   const selectedCity = useSelector((state) => state.city.selectedCity);
   const { data: profileData, isLoading: profileLoading } = useGetMyVendorProfileQuery();
-  const { data: statsData, isLoading: statsLoading } = useGetMyVendorStatsQuery({ city: selectedCity?.id });
+  const { data: statsData, isLoading: statsLoading } = useGetMyVendorStatsQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
   const { data: productsData } = useListMyProductsQuery(
     { vendor: profileData?.data?._id, city: selectedCity?.id, limit: 24, sort: 'newest' },
     { skip: !profileData?.data?._id }

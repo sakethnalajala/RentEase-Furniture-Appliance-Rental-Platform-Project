@@ -4,6 +4,11 @@ const { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHOD } = require('../constants/o
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
+    // Distinct from orderNumber (the customer/vendor-facing order id) — a real, generated-once-
+    // per-order accounting reference, surfaced on the Vendor Orders page and downloadable
+    // invoices. Sparse+unique so pre-existing orders (created before this field existed) don't
+    // collide on the shared `null` value.
+    invoiceNumber: { type: String, unique: true, sparse: true },
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     city: { type: mongoose.Schema.Types.ObjectId, ref: 'City', required: true },
     deliveryAddress: {

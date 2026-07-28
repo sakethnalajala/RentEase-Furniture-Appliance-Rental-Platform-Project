@@ -10,6 +10,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useAdminListOrdersQuery } from '@/store/adminApi';
 import { statusLabel, formatDate, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const TABS = [
   { key: 'pending', label: 'Pending' },
@@ -30,7 +31,10 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const selectedCity = useSelector((state) => state.city.selectedCity);
 
-  const { data, isLoading, isFetching } = useAdminListOrdersQuery({ group: tab, page, limit: PAGE_SIZE, city: selectedCity?.id });
+  const { data, isLoading, isFetching } = useAdminListOrdersQuery(
+    { group: tab, page, limit: PAGE_SIZE, city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
   const payload = data?.data;
   const items = payload?.items || [];
   const statusCounts = payload?.statusCounts || {};

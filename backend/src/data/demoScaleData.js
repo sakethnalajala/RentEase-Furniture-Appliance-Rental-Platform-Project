@@ -45,6 +45,17 @@ function nameForIndex(cityIdx, i) {
   return `${first} ${last}`;
 }
 
+// Male-only subset (the first half of FIRST_NAMES) used specifically for delivery-partner
+// generation — per product direction, every delivery partner profile is a male name/avatar,
+// while customer/vendor generation above keeps drawing from the full, gender-mixed pool.
+const MALE_FIRST_NAMES = FIRST_NAMES.slice(0, 20);
+function maleNameForIndex(cityIdx, i) {
+  const offset = cityIdx * 137 + i;
+  const first = MALE_FIRST_NAMES[offset % MALE_FIRST_NAMES.length];
+  const last = LAST_NAMES[Math.floor(offset / MALE_FIRST_NAMES.length) % LAST_NAMES.length];
+  return `${first} ${last}`;
+}
+
 function areaForIndex(cityName, i) {
   const areas = AREA_BY_CITY[cityName] || AREA_BY_CITY.Hyderabad;
   return areas[i % areas.length];
@@ -119,7 +130,7 @@ function generateCityDeliveryPartners(cityName, cityIdx, count) {
   const vehicleTypes = ['bike', 'bike', 'bike', 'van', 'truck'];
   const out = [];
   for (let i = 0; i < count; i++) {
-    const name = nameForIndex(cityIdx, i + 800);
+    const name = maleNameForIndex(cityIdx, i + 800);
     const emailSlug = `${slug(name)}.${cityCode(cityName)}${i}`;
     out.push({
       name,

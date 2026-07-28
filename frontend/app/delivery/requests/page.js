@@ -17,6 +17,7 @@ import {
   useRejectDeliveryRequestMutation,
 } from '@/store/deliveryApi';
 import { formatAddress, formatDateTime, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 // How long an "Accepted"/"Rejected" confirmation pill stays visible before the card exits —
 // decoupled from how fast the background refetch happens, so the state is never just a flash.
@@ -137,7 +138,7 @@ function RequestCard({ item, decision, acting, onAccept, onReject }) {
 }
 
 export default function DeliveryRequestsPage() {
-  const { data, isLoading, isFetching } = useListDeliveryRequestsQuery();
+  const { data, isLoading, isFetching } = useListDeliveryRequestsQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const [acceptRequest] = useAcceptDeliveryRequestMutation();
   const [rejectRequest] = useRejectDeliveryRequestMutation();
   const [search, setSearch] = useState('');

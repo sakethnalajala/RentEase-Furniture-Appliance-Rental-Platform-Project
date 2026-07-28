@@ -32,6 +32,7 @@ import { useGetUnreadNotificationCountQuery } from '@/store/notificationApi';
 import { useGetMyDeliveryProfileQuery } from '@/store/deliveryApi';
 import { setSelectedCity } from '@/store/citySlice';
 import { DELIVERY_PARTNER_BY_CITY } from '@/lib/demoAccounts';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const NAV_ITEMS = [
   { href: '/delivery', label: 'Dashboard', icon: Home, exact: true },
@@ -74,7 +75,7 @@ function NavLink({ item, active, onNavigate, badge }) {
 
 function SidebarContent({ onNavigate }) {
   const pathname = usePathname();
-  const { data: unread } = useGetUnreadNotificationCountQuery();
+  const { data: unread } = useGetUnreadNotificationCountQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const [logoutUser, { isLoading }] = useLogoutUserMutation();
 
   const unreadCount = unread?.data?.count || 0;

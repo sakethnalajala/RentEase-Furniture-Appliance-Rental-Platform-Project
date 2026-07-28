@@ -12,6 +12,7 @@ import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
 import { useGetAdminStatsQuery, useListVendorApplicationsQuery } from '@/store/adminApi';
 import { fadeInUp, staggerContainer } from '@/lib/motion';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const QUICK_LINKS = [
   { href: '/admin/orders', label: 'Orders', description: 'Track order pipeline', icon: ShoppingBag, color: 'from-sky-500 to-sky-700' },
@@ -23,8 +24,11 @@ const QUICK_LINKS = [
 export default function AdminDashboardPage() {
   const user = useSelector((state) => state.auth.user);
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const { data: statsData, isLoading: loadingStats } = useGetAdminStatsQuery({ city: selectedCity?.id });
-  const { data: pendingData, isLoading: loadingPending } = useListVendorApplicationsQuery({ status: 'pending', city: selectedCity?.id });
+  const { data: statsData, isLoading: loadingStats } = useGetAdminStatsQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
+  const { data: pendingData, isLoading: loadingPending } = useListVendorApplicationsQuery(
+    { status: 'pending', city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
 
   const stats = statsData?.data;
   const pendingVendors = (pendingData?.data || []).slice(0, 5);

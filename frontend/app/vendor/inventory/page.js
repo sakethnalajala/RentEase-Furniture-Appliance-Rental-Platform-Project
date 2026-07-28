@@ -9,6 +9,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
 import { useGetMyVendorProfileQuery, useListMyProductsQuery } from '@/store/vendorApi';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 function StockBadge({ stock }) {
   if (stock <= 2) {
@@ -42,7 +43,7 @@ function InventoryContent() {
 
   const { data, isLoading } = useListMyProductsQuery(
     { vendor: vendorId, city: selectedCity?.id, search: search || undefined, sort: 'newest', page, limit: 24 },
-    { skip: !vendorId }
+    { skip: !vendorId, pollingInterval: LIVE_POLL_MS }
   );
 
   const allItems = data?.data?.items || [];

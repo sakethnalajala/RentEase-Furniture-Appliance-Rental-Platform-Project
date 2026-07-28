@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
-import { Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone } from 'lucide-react';
+import { Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Receipt, CalendarClock, Truck, PackageCheck, Wallet } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
@@ -14,8 +14,24 @@ import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useGetMyVendorProfileQuery, useListMyProductsQuery } from '@/store/vendorApi';
 import { useListVendorOrderItemsQuery, useUpdateVendorItemStatusMutation } from '@/store/orderApi';
 import { buildVendorOrders, ORDER_STATUSES } from '@/lib/mockVendorData';
+import { formatDate, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...ORDER_STATUSES.map((s) => ({ value: s, label: s }))];
+
+const PAYMENT_STATUS_VARIANT = { paid: 'success', pending: 'neutral', failed: 'accent', refunded: 'accent', partially_refunded: 'accent' };
+
+// Pickup/Delivery aren't separate stored fields — they're the same OrderItem.status lifecycle,
+// read back out through its real pickedUpAt/deliveredAt timestamps (set the moment a delivery
+// partner actually performs each step) rather than inventing new parallel state.
+function pickupStatus(item) {
+  return item.pickedUpAt ? 'Picked up' : 'Pending pickup';
+}
+function deliveryStatus(item) {
+  if (item.deliveredAt) return 'Delivered';
+  if (item.pickedUpAt) return 'Out for delivery';
+  return 'Not dispatched';
+}
 
 // Real OrderItem.status values are lowercase/snake_case; OrderStatusBadge's palette (and the
 // demo-order pipeline it was originally built for) uses Title Case labels — mapping real
@@ -105,6 +121,30 @@ function RealOrderCard({ order }) {
           </div>
         )}
       </div>
+
+      {/* Full order detail row — order id, invoice, rental window, payment/pickup/delivery
+          status, and security deposit, all sourced from the real Order/OrderItem documents. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-200/70 pt-3 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
+        <span className="flex items-center gap-1">
+          <Receipt size={11} /> {order.order?.invoiceNumber || '—'}
+        </span>
+        <span className="flex items-center gap-1">
+          <CalendarClock size={11} />
+          {order.rentalStartDate ? `${formatDate(order.rentalStartDate)} – ${order.rentalEndDate ? formatDate(order.rentalEndDate) : 'ongoing'}` : 'Rental not started'}
+        </span>
+        <span className="flex items-center gap-1">
+          <Wallet size={11} /> Deposit {money(order.securityDeposit)}
+        </span>
+        <Badge variant={PAYMENT_STATUS_VARIANT[order.order?.paymentStatus] || 'neutral'} className="capitalize">
+          Payment {order.order?.paymentStatus || 'pending'}
+        </Badge>
+        <Badge variant={order.pickedUpAt ? 'success' : 'neutral'}>
+          <PackageCheck size={10} /> {pickupStatus(order)}
+        </Badge>
+        <Badge variant={order.deliveredAt ? 'success' : 'neutral'}>
+          <Truck size={10} /> {deliveryStatus(order)}
+        </Badge>
+      </div>
     </Card>
   );
 }
@@ -117,7 +157,10 @@ export default function VendorOrdersPage() {
     { vendor: vendorId, city: selectedCity?.id, sort: 'newest', limit: 48 },
     { skip: !vendorId }
   );
-  const { data: realOrdersData, isLoading: realOrdersLoading } = useListVendorOrderItemsQuery({ city: selectedCity?.id });
+  const { data: realOrdersData, isLoading: realOrdersLoading } = useListVendorOrderItemsQuery(
+    { city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');

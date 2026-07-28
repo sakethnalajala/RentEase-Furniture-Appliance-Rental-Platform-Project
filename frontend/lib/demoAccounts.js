@@ -70,11 +70,11 @@ export const DELIVERY_PARTNER_BY_CITY = {
   Bengaluru: {
     role: 'delivery_partner',
     label: 'Demo Delivery Partner',
-    name: 'Kavya Reddy',
+    name: 'Karthik Reddy',
     email: 'demo.delivery.bengaluru@rentease.com',
     password: 'Demo@1234',
     fields: [
-      { label: 'Name', value: 'Kavya Reddy' },
+      { label: 'Name', value: 'Karthik Reddy' },
       { label: 'Email', value: 'demo.delivery.bengaluru@rentease.com' },
       { label: 'Password', value: 'Demo@1234' },
       { label: 'Vehicle', value: 'Bike · KA05DP1234' },

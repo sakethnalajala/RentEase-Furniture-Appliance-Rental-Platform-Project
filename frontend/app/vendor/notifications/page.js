@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 import {
   useListNotificationsQuery,
   useGetUnreadNotificationCountQuery,
@@ -33,7 +34,7 @@ function timeAgo(date) {
 }
 
 export default function VendorNotificationsPage() {
-  const { data, isLoading } = useListNotificationsQuery();
+  const { data, isLoading } = useListNotificationsQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const { data: unreadData } = useGetUnreadNotificationCountQuery();
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllNotificationsReadMutation();

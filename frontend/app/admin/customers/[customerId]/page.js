@@ -19,6 +19,9 @@ import {
   XCircle,
   Wallet,
   Users,
+  Receipt,
+  History,
+  IndianRupee,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -28,6 +31,11 @@ import { CountUpNumber } from '@/components/vendor/AnalyticsCharts';
 import { useAdminGetCustomerQuery } from '@/store/adminApi';
 import { money, formatDate, formatDateTime, statusLabel, initials } from '@/lib/deliveryHelpers';
 import { fadeInUp, staggerContainer } from '@/lib/motion';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
+
+const PAYMENT_STATUS_VARIANT = { paid: 'success', pending: 'neutral', failed: 'accent', refunded: 'accent', partially_refunded: 'accent' };
+
+const ACTIVITY_ICON = { order_placed: ShoppingBag, order_status: History, payment: IndianRupee, account_created: Users };
 
 function StatTile({ icon: Icon, label, value, prefix = '', decimals = 0, accent }) {
   return (
@@ -45,16 +53,28 @@ function StatTile({ icon: Icon, label, value, prefix = '', decimals = 0, accent 
 
 export default function AdminCustomerDetailPage() {
   const { customerId } = useParams();
-  const { data, isLoading } = useAdminGetCustomerQuery(customerId);
+  const { data, isLoading } = useAdminGetCustomerQuery(customerId, { pollingInterval: LIVE_POLL_MS });
 
   const customer = data?.data?.customer;
   const orders = data?.data?.orders || [];
   const addresses = data?.data?.addresses || [];
+  const payments = data?.data?.payments || [];
+  const activity = data?.data?.activity || [];
   const totalOrders = data?.data?.totalOrders ?? 0;
   const activeRentals = data?.data?.activeRentals ?? 0;
   const completedRentals = data?.data?.completedRentals ?? 0;
   const cancelledOrders = data?.data?.cancelledOrders ?? 0;
   const totalSpending = data?.data?.totalSpending ?? 0;
+  const totalPayments = data?.data?.totalPayments ?? 0;
+
+  // "Rental history" is the same order-item lifecycle, filtered down to items that actually
+  // became a rental (active or completed) — a real, currency-independent view of the customer's
+  // rental record rather than every order regardless of outcome.
+  const rentalItems = orders.flatMap((o) =>
+    (o.items || [])
+      .filter((i) => ['active_rental', 'returned', 'completed', 'extension_requested'].includes(i.status))
+      .map((i) => ({ ...i, orderNumber: o.orderNumber, placedAt: o.placedAt }))
+  );
 
   if (isLoading) {
     return (
@@ -112,9 +132,7 @@ export default function AdminCustomerDetailPage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">{customer.name}</h1>
-              <Badge variant={customer.isActive !== false ? 'success' : 'neutral'}>
-                {customer.isActive !== false ? 'Active' : 'Suspended'}
-              </Badge>
+              <Badge variant="brand">Customer</Badge>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
@@ -173,11 +191,12 @@ export default function AdminCustomerDetailPage() {
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatTile icon={ShoppingBag} label="Total orders" value={totalOrders} accent="bg-brand-500/10 text-brand-600 dark:text-brand-300" />
         <StatTile icon={CalendarClock} label="Active rentals" value={activeRentals} accent="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
         <StatTile icon={CheckCircle2} label="Completed rentals" value={completedRentals} accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
         <StatTile icon={XCircle} label="Cancelled orders" value={cancelledOrders} accent="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
+        <StatTile icon={Receipt} label="Total payments" value={totalPayments} accent="bg-sky-500/10 text-sky-600 dark:text-sky-400" />
         <StatTile icon={Wallet} label="Total spending" value={totalSpending} prefix="₹" accent="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
       </motion.div>
 
@@ -222,6 +241,108 @@ export default function AdminCustomerDetailPage() {
               );
             })}
           </div>
+        )}
+      </motion.div>
+
+      {/* Rental history — order items that actually became a rental (active or completed) */}
+      <motion.div variants={fadeInUp}>
+        <h2 className="mb-3 font-display text-base font-semibold text-slate-900 dark:text-white">Rental history</h2>
+        {rentalItems.length === 0 ? (
+          <Card variant="glass" className="flex flex-col items-center gap-2 p-10 text-center">
+            <CalendarClock size={26} className="text-slate-400" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">No active or completed rentals yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-2.5">
+            {rentalItems.map((item) => (
+              <Card key={item._id} variant="glass" className="flex flex-wrap items-center gap-4 p-4">
+                {item.product?.images?.[0] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.product.images[0]} alt={item.product.name} className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/5">
+                    <ImageOff size={16} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.product?.name || 'Product'}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
+                    <span>#{item.orderNumber}</span>
+                    {item.rentalStartDate && <span>Start {formatDate(item.rentalStartDate)}</span>}
+                    {item.rentalEndDate && <span>End {formatDate(item.rentalEndDate)}</span>}
+                  </p>
+                </div>
+                <OrderStatusBadge status={statusLabel(item.status)} />
+              </Card>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Payments */}
+      <motion.div variants={fadeInUp}>
+        <h2 className="mb-3 font-display text-base font-semibold text-slate-900 dark:text-white">Payments</h2>
+        {payments.length === 0 ? (
+          <Card variant="glass" className="flex flex-col items-center gap-2 p-10 text-center">
+            <Receipt size={26} className="text-slate-400" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">No payments recorded yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-2.5">
+            {payments.map((p) => (
+              <Card key={p._id} variant="glass" className="flex flex-wrap items-center gap-4 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <IndianRupee size={16} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white capitalize">
+                    {p.type?.replace(/_/g, ' ')} · {p.method?.replace(/_/g, ' ')}
+                  </p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
+                    {p.order?.orderNumber && <span>#{p.order.orderNumber}</span>}
+                    <span>{formatDateTime(p.createdAt)}</span>
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-slate-900 dark:text-white">{money(p.amount)}</p>
+                <Badge variant={PAYMENT_STATUS_VARIANT[p.status] || 'neutral'} className="capitalize">
+                  {p.status?.replace(/_/g, ' ')}
+                </Badge>
+              </Card>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Activity timeline */}
+      <motion.div variants={fadeInUp}>
+        <h2 className="mb-3 font-display text-base font-semibold text-slate-900 dark:text-white">Activity timeline</h2>
+        {activity.length === 0 ? (
+          <Card variant="glass" className="flex flex-col items-center gap-2 p-10 text-center">
+            <History size={26} className="text-slate-400" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">No activity yet.</p>
+          </Card>
+        ) : (
+          <Card variant="glass" className="p-5">
+            <div className="space-y-4">
+              {activity.slice(0, 40).map((event, i) => {
+                const Icon = ACTIVITY_ICON[event.type] || History;
+                return (
+                  <div key={i} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:bg-brand-400/10 dark:text-brand-300">
+                        <Icon size={14} />
+                      </span>
+                      {i < Math.min(activity.length, 40) - 1 && <span className="mt-1 w-px flex-1 bg-slate-200 dark:bg-white/10" />}
+                    </div>
+                    <div className="min-w-0 flex-1 pb-4">
+                      <p className="text-sm font-medium capitalize text-slate-900 dark:text-white">{event.label}</p>
+                      <p className="text-xs text-slate-400">{formatDateTime(event.date)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
         )}
       </motion.div>
     </motion.div>

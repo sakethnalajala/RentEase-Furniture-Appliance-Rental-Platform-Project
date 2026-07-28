@@ -20,6 +20,7 @@ import {
   useAdminDeleteVendorMutation,
 } from '@/store/adminApi';
 import { money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const TABS = [
   { key: 'pending', label: 'Pending' },
@@ -40,7 +41,10 @@ export default function VendorManagementPage() {
   const [search, setSearch] = useState('');
   const [editingVendor, setEditingVendor] = useState(null);
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const { data, isLoading } = useListVendorApplicationsQuery({ status: tab, city: selectedCity?.id, search: search || undefined });
+  const { data, isLoading } = useListVendorApplicationsQuery(
+    { status: tab, city: selectedCity?.id, search: search || undefined },
+    { pollingInterval: LIVE_POLL_MS }
+  );
   const [approveVendor] = useApproveVendorApplicationMutation();
   const [rejectVendor] = useRejectVendorApplicationMutation();
   const [suspendVendor, { isLoading: isSuspending }] = useSuspendVendorApplicationMutation();

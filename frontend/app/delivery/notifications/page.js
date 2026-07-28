@@ -14,6 +14,7 @@ import {
   useDeleteNotificationMutation,
 } from '@/store/notificationApi';
 import { statusLabel, timeAgo } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 // This is the exact same real, generic Notification model/API every other role uses (see
 // frontend/store/notificationApi.js) — no delivery-specific backend work needed. Real
@@ -30,7 +31,7 @@ const TYPE_COLOR = {
 };
 
 export default function DeliveryNotificationsPage() {
-  const { data, isLoading } = useListNotificationsQuery();
+  const { data, isLoading } = useListNotificationsQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const { data: unreadData } = useGetUnreadNotificationCountQuery();
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllNotificationsReadMutation();

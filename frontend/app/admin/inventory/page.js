@@ -17,6 +17,7 @@ import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
 import { useAdminGetInventoryOverviewQuery } from '@/store/adminApi';
 import { fadeInUp, staggerContainer } from '@/lib/motion';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_META = {
   available: { label: 'Available', icon: CheckCircle2, color: 'from-emerald-500 to-teal-500' },
@@ -27,7 +28,7 @@ const STATUS_META = {
 
 export default function AdminInventoryPage() {
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const { data, isLoading } = useAdminGetInventoryOverviewQuery({ city: selectedCity?.id });
+  const { data, isLoading } = useAdminGetInventoryOverviewQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
   const inv = data?.data;
 
   const statCards = [

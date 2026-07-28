@@ -17,6 +17,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import { useGetMeQuery, useUpdateProfileMutation, useUploadUserImageMutation, useChangePasswordMutation } from '@/store/authApi';
 import { useGetWishlistQuery, useListAddressesQuery } from '@/store/customerApi';
 import { useListMyOrdersQuery } from '@/store/orderApi';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 // Same lightweight requestAnimationFrame counter used on the Admin/Vendor profile pages — kept
 // local rather than imported since neither of those extracted it into a shared component.
@@ -145,7 +146,7 @@ export default function CustomerProfilePage() {
   const { data: meData, isLoading: meLoading } = useGetMeQuery();
   const { data: wishlistData, isLoading: wishlistLoading } = useGetWishlistQuery();
   const { data: addressesData, isLoading: addressesLoading } = useListAddressesQuery();
-  const { data: ordersData, isLoading: ordersLoading } = useListMyOrdersQuery();
+  const { data: ordersData, isLoading: ordersLoading } = useListMyOrdersQuery(undefined, { pollingInterval: LIVE_POLL_MS });
 
   const [updateProfile, { isLoading: isSavingProfile }] = useUpdateProfileMutation();
   const [uploadImage, { isLoading: isUploadingImage }] = useUploadUserImageMutation();

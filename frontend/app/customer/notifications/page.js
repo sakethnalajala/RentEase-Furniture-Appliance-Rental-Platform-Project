@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import Switch from '@/components/ui/Switch';
 import Skeleton from '@/components/ui/Skeleton';
 import { useNotificationPrefs } from '@/hooks/useNotificationPrefs';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 import {
   useListNotificationsQuery,
   useGetUnreadNotificationCountQuery,
@@ -85,7 +86,7 @@ function MessageBody({ notification }) {
 }
 
 export default function NotificationsPage() {
-  const { data, isLoading } = useListNotificationsQuery();
+  const { data, isLoading } = useListNotificationsQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const { data: unreadData } = useGetUnreadNotificationCountQuery();
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllNotificationsReadMutation();

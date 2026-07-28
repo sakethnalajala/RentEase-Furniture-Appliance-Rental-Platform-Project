@@ -11,6 +11,7 @@ import Skeleton from '@/components/ui/Skeleton';
 import { useAdminListPaymentsQuery, useAdminGetPaymentsSummaryQuery } from '@/store/adminApi';
 import { MagnitudeBarChart, CountUpNumber } from '@/components/vendor/AnalyticsCharts';
 import { formatDate, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -61,8 +62,11 @@ export default function AdminPaymentsPage() {
   const [page, setPage] = useState(1);
   const selectedCity = useSelector((state) => state.city.selectedCity);
 
-  const { data: summaryData, isLoading: summaryLoading } = useAdminGetPaymentsSummaryQuery({ city: selectedCity?.id });
-  const { data: listData, isLoading: listLoading, isFetching } = useAdminListPaymentsQuery({ status, method, page, limit: PAGE_SIZE, city: selectedCity?.id });
+  const { data: summaryData, isLoading: summaryLoading } = useAdminGetPaymentsSummaryQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
+  const { data: listData, isLoading: listLoading, isFetching } = useAdminListPaymentsQuery(
+    { status, method, page, limit: PAGE_SIZE, city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
 
   const summary = summaryData?.data;
   const payload = listData?.data;

@@ -569,8 +569,8 @@ async function customerStatsById(customerIds) {
   const [orders, spendingAgg, addresses] = await Promise.all([
     Order.find({ customer: { $in: customerIds } }).select('_id customer').lean(),
     Payment.aggregate([
-      { $match: { user: { $in: customerIds }, status: PAYMENT_STATUS.PAID } },
-      { $group: { _id: '$user', total: { $sum: '$amount' } } },
+      { $match: { user: { $in: customerIds } } },
+      { $group: { _id: '$user', total: { $sum: { $cond: [{ $eq: ['$status', PAYMENT_STATUS.PAID] }, '$amount', 0] } }, count: { $sum: 1 } } },
     ]),
     Address.find({ user: { $in: customerIds } }).select('user addressLine1 addressLine2 city state pincode isDefault').populate('city', 'name state').lean(),
   ]);
@@ -598,6 +598,7 @@ async function customerStatsById(customerIds) {
   });
 
   const spendingByCustomer = Object.fromEntries(spendingAgg.map((s) => [String(s._id), s.total]));
+  const paymentCountByCustomer = Object.fromEntries(spendingAgg.map((s) => [String(s._id), s.count]));
   const addressByCustomer = Object.fromEntries(addresses.map((a) => [String(a.user), a]));
 
   const out = {};
@@ -606,6 +607,7 @@ async function customerStatsById(customerIds) {
     out[key] = {
       ...ensure(key),
       totalSpending: spendingByCustomer[key] || 0,
+      totalPayments: paymentCountByCustomer[key] || 0,
       address: addressByCustomer[key] || null,
     };
   });
@@ -620,14 +622,15 @@ const CUSTOMER_SORTS = {
 };
 
 const adminListCustomers = asyncHandler(async (req, res) => {
-  const { search, city, status, sort = 'newest', page = 1, limit = 20 } = req.query;
+  const { search, city, sort = 'newest', page = 1, limit = 20 } = req.query;
+  // Customers are buyers only — there is no suspend/reactivate concept for this role (that
+  // exists only for Vendors and Delivery Partners, who are platform operators with their own
+  // approval lifecycle). No status filter here by design.
   const filter = { role: ROLES.CUSTOMER };
   // A customer isn't tied to a city the way a Vendor/DeliveryPartner is — `selectedCity` (their
   // current browsing city, the same field the storefront's city switcher writes to) is the only
   // geographic signal this app has for a customer, so it doubles as the admin city-scope proxy.
   if (city) filter.selectedCity = city;
-  if (status === 'active') filter.isActive = true;
-  else if (status === 'suspended') filter.isActive = false;
   if (search) {
     const regex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ name: regex }, { email: regex }, { phone: regex }];
@@ -667,28 +670,58 @@ const adminGetCustomer = asyncHandler(async (req, res) => {
     .lean();
   if (!customer) throw ApiError.notFound('Customer not found.');
 
-  const [orders, addresses] = await Promise.all([
+  const [orders, addresses, payments] = await Promise.all([
     Order.find({ customer: customer._id }).sort({ createdAt: -1 }).populate({ path: 'items', populate: { path: 'product', select: 'name images' } }).lean(),
     Address.find({ user: customer._id }).populate('city', 'name state').lean(),
+    Payment.find({ user: customer._id }).sort({ createdAt: -1 }).populate({ path: 'order', select: 'orderNumber' }).lean(),
   ]);
   const allItems = orders.flatMap((o) => o.items);
   const activeRentals = allItems.filter((i) => i.status === ORDER_ITEM_STATUS.ACTIVE_RENTAL).length;
   const completedRentals = allItems.filter((i) => [ORDER_ITEM_STATUS.RETURNED, ORDER_ITEM_STATUS.COMPLETED].includes(i.status)).length;
   const cancelledOrders = allItems.filter((i) => i.status === ORDER_ITEM_STATUS.CANCELLED).length;
-  const totalSpendingAgg = await Payment.aggregate([
-    { $match: { user: customer._id, status: PAYMENT_STATUS.PAID } },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
+  const totalSpending = payments.filter((p) => p.status === PAYMENT_STATUS.PAID).reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Chronological activity feed — merged from real events already on hand (no separate
+  // AuditLog collection for customer-facing actions): order placement, every OrderItem status
+  // transition (confirmed/out-for-delivery/delivered/active_rental/returned/etc., each already
+  // timestamped in `statusHistory` at the moment it happened), and payment completions.
+  const activity = [];
+  orders.forEach((order) => {
+    activity.push({ type: 'order_placed', label: `Order #${order.orderNumber} placed`, date: order.placedAt || order.createdAt });
+    (order.items || []).forEach((item) => {
+      (item.statusHistory || []).forEach((h) => {
+        activity.push({
+          type: 'order_status',
+          label: `${item.product?.name || 'Item'} — ${String(h.status).replace(/_/g, ' ')}`,
+          date: h.changedAt,
+          note: h.note,
+        });
+      });
+    });
+  });
+  payments.forEach((p) => {
+    activity.push({
+      type: 'payment',
+      label: p.status === PAYMENT_STATUS.PAID ? `Payment received for #${p.order?.orderNumber || 'order'}` : `Payment ${p.status} for #${p.order?.orderNumber || 'order'}`,
+      date: p.createdAt,
+      amount: p.amount,
+    });
+  });
+  activity.push({ type: 'account_created', label: 'Account created', date: customer.createdAt });
+  activity.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   new ApiResponse(200, {
     customer,
     orders,
     addresses,
+    payments,
+    activity,
     totalOrders: orders.length,
     activeRentals,
     completedRentals,
     cancelledOrders,
-    totalSpending: totalSpendingAgg[0]?.total || 0,
+    totalSpending,
+    totalPayments: payments.length,
   }).send(res);
 });
 

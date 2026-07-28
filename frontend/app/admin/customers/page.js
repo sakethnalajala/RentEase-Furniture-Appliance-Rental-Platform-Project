@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { Search, Users, ChevronLeft, ChevronRight, ShoppingBag, ArrowRight, MapPin, Wallet, CalendarClock } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, ShoppingBag, ArrowRight, MapPin, Wallet, CalendarClock, Receipt, Clock3 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Skeleton from '@/components/ui/Skeleton';
 import { useAdminListCustomersQuery } from '@/store/adminApi';
-import { money, formatDate } from '@/lib/deliveryHelpers';
+import { money, formatDate, formatDateTime } from '@/lib/deliveryHelpers';
 import { fadeInUp, staggerContainer } from '@/lib/motion';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 function useDebouncedValue(value, delay = 300) {
   const [debounced, setDebounced] = useState(value);
@@ -28,12 +29,6 @@ function initials(name = '') {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || 'U';
 }
 
-const STATUS_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'suspended', label: 'Suspended' },
-];
-
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
@@ -45,23 +40,24 @@ const SORT_OPTIONS = [
 
 export default function AdminCustomersPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
 
   const selectedCity = useSelector((state) => state.city.selectedCity);
 
-  useEffect(() => setPage(1), [debouncedSearch, status, sort]);
+  useEffect(() => setPage(1), [debouncedSearch, sort]);
 
-  const { data, isLoading, isFetching } = useAdminListCustomersQuery({
-    search: debouncedSearch || undefined,
-    status: status !== 'all' ? status : undefined,
-    sort,
-    page,
-    limit: 20,
-    city: selectedCity?.id,
-  });
+  const { data, isLoading, isFetching } = useAdminListCustomersQuery(
+    {
+      search: debouncedSearch || undefined,
+      sort,
+      page,
+      limit: 20,
+      city: selectedCity?.id,
+    },
+    { pollingInterval: LIVE_POLL_MS }
+  );
 
   const items = data?.data?.items || [];
   const total = data?.data?.total || 0;
@@ -78,24 +74,7 @@ export default function AdminCustomersPage() {
 
       <motion.div variants={fadeInUp}>
         <Card variant="glass" className="flex flex-col gap-3 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {STATUS_TABS.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setStatus(t.key)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    status === t.key
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10 dark:bg-white/10 dark:text-slate-300'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <Select value={sort} onChange={setSort} options={SORT_OPTIONS} className="w-full sm:w-52" />
           </div>
 
@@ -142,9 +121,11 @@ export default function AdminCustomersPage() {
                       <span>Joined {formatDate(customer.createdAt)}</span>
                       <span className="flex items-center gap-1">
                         <MapPin size={11} />
-                        {customer.address
-                          ? `${customer.address.addressLine2 || customer.address.addressLine1}, ${customer.address.city?.name || ''}`
-                          : 'No address on file'}
+                        {customer.selectedCity?.name || customer.address?.city?.name || 'No city set'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock3 size={11} />
+                        {customer.lastLoginAt ? `Last login ${formatDateTime(customer.lastLoginAt)}` : 'Never logged in'}
                       </span>
                     </p>
                   </div>
@@ -153,16 +134,16 @@ export default function AdminCustomersPage() {
                     <Badge variant="brand">
                       <ShoppingBag size={11} /> {customer.totalOrders ?? 0} orders
                     </Badge>
-                    <Badge variant="neutral">
-                      <Wallet size={11} /> {money(customer.totalSpending)}
-                    </Badge>
                     {customer.activeRentals > 0 && (
                       <Badge variant="accent">
                         <CalendarClock size={11} /> {customer.activeRentals} active
                       </Badge>
                     )}
-                    <Badge variant={customer.isActive !== false ? 'success' : 'neutral'}>
-                      {customer.isActive !== false ? 'Active' : 'Suspended'}
+                    <Badge variant="neutral">
+                      <Receipt size={11} /> {customer.totalPayments ?? 0} payments
+                    </Badge>
+                    <Badge variant="neutral">
+                      <Wallet size={11} /> {money(customer.totalSpending)}
                     </Badge>
                   </div>
                   <ArrowRight size={15} className="shrink-0 text-slate-400" />

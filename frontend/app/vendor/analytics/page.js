@@ -16,6 +16,7 @@ import {
 } from '@/store/vendorApi';
 import { buildVendorAnalytics } from '@/lib/mockVendorData';
 import { statusLabel, formatDate } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 import {
   MagnitudeBarChart, StatusBreakdownChart, WeeklyTrendChart, LineAreaChart, PieDonutChart,
   ProgressRing, CountUpNumber,
@@ -91,13 +92,16 @@ export default function VendorAnalyticsPage() {
   const selectedCity = useSelector((state) => state.city.selectedCity);
   const { data: profileData } = useGetMyVendorProfileQuery();
   const vendorId = profileData?.data?._id;
-  const { data: statsData, isLoading: statsLoading } = useGetMyVendorStatsQuery({ city: selectedCity?.id });
+  const { data: statsData, isLoading: statsLoading } = useGetMyVendorStatsQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
   const { data: productsData, isLoading: productsLoading } = useListMyProductsQuery(
     { vendor: vendorId, city: selectedCity?.id, sort: 'newest', limit: 48 },
     { skip: !vendorId }
   );
   const { data: partnersData, isLoading: partnersLoading } = useListVendorDeliveryPartnersQuery({ city: selectedCity?.id });
-  const { data: deliveryAnalyticsData, isLoading: deliveryAnalyticsLoading } = useGetVendorDeliveryAnalyticsQuery({ city: selectedCity?.id });
+  const { data: deliveryAnalyticsData, isLoading: deliveryAnalyticsLoading } = useGetVendorDeliveryAnalyticsQuery(
+    { city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
 
   const stats = statsData?.data;
   const products = productsData?.data?.items || [];

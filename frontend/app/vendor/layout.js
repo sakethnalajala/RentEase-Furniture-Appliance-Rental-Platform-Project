@@ -28,6 +28,7 @@ import Spinner from '@/components/ui/Spinner';
 import Button from '@/components/ui/Button';
 import { useLogoutUserMutation } from '@/store/authApi';
 import { useGetUnreadNotificationCountQuery } from '@/store/notificationApi';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const NAV_ITEMS = [
   { href: '/vendor', label: 'Dashboard', icon: Home, exact: true },
@@ -71,7 +72,7 @@ function NavLink({ item, active, onNavigate, badge }) {
 
 function SidebarContent({ onNavigate }) {
   const pathname = usePathname();
-  const { data: unread } = useGetUnreadNotificationCountQuery();
+  const { data: unread } = useGetUnreadNotificationCountQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const [logoutUser, { isLoading }] = useLogoutUserMutation();
 
   const unreadCount = unread?.data?.count || 0;

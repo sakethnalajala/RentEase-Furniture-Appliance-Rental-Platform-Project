@@ -31,6 +31,8 @@ const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex'
 const generateFourDigitOtp = () => crypto.randomInt(1000, 10000).toString();
 const generateOrderNumber = () =>
   `RE${Date.now().toString(36).toUpperCase()}${crypto.randomInt(100, 999)}`;
+const generateInvoiceNumber = () =>
+  `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}${crypto.randomInt(10, 99)}`;
 
 const ORDER_ITEM_POPULATE = [
   { path: 'product', select: 'name images subCategory brand city monthlyRentalPrice securityDeposit deliveryCharge installationRequired estimatedDeliveryDays', populate: { path: 'city', select: 'name state' } },
@@ -77,6 +79,7 @@ const checkout = asyncHandler(async (req, res) => {
   const orderNumber = generateOrderNumber();
   const order = await Order.create({
     orderNumber,
+    invoiceNumber: generateInvoiceNumber(),
     customer: req.user._id,
     city: cityId,
     deliveryAddress: { ...deliveryAddress, addressLine2: deliveryAddress.addressLine2 || '' },
@@ -352,7 +355,11 @@ const listVendorOrderItems = asyncHandler(async (req, res) => {
   const items = await OrderItem.find(filter)
     .sort({ createdAt: -1 })
     .populate(ORDER_ITEM_POPULATE)
-    .populate({ path: 'order', select: 'orderNumber customer deliveryAddress placedAt', populate: { path: 'customer', select: 'name email phone' } })
+    .populate({
+      path: 'order',
+      select: 'orderNumber invoiceNumber customer deliveryAddress placedAt paymentStatus paymentMethod',
+      populate: { path: 'customer', select: 'name email phone' },
+    })
     .lean();
 
   new ApiResponse(200, items).send(res);

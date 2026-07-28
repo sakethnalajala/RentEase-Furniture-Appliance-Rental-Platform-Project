@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button';
 import { useLogoutUserMutation } from '@/store/authApi';
 import { useGetCartQuery, useGetWishlistQuery } from '@/store/customerApi';
 import { useGetUnreadNotificationCountQuery } from '@/store/notificationApi';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const NAV_ITEMS = [
   { href: '/customer', label: 'Dashboard', icon: Home, exact: true },
@@ -58,7 +59,7 @@ function SidebarContent({ onNavigate }) {
   const pathname = usePathname();
   const { data: cart } = useGetCartQuery();
   const { data: wishlist } = useGetWishlistQuery();
-  const { data: unread } = useGetUnreadNotificationCountQuery();
+  const { data: unread } = useGetUnreadNotificationCountQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const [logoutUser, { isLoading }] = useLogoutUserMutation();
 
   const cartCount = cart?.data?.items?.length || 0;

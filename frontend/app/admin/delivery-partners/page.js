@@ -23,6 +23,7 @@ import {
 } from '@/store/adminApi';
 import EditDeliveryPartnerModal from '@/components/admin/EditDeliveryPartnerModal';
 import { initials } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
 
@@ -193,7 +194,10 @@ export default function AdminDeliveryPartnersPage() {
   const [statusTab, setStatusTab] = useState('');
   const [search, setSearch] = useState('');
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const { data, isLoading } = useAdminListDeliveryPartnersQuery({ status: statusTab || undefined, city: selectedCity?.id });
+  const { data, isLoading } = useAdminListDeliveryPartnersQuery(
+    { status: statusTab || undefined, city: selectedCity?.id },
+    { pollingInterval: LIVE_POLL_MS }
+  );
   const [approvePartner, { isLoading: isApproving }] = useApproveDeliveryPartnerMutation();
   const [rejectPartner, { isLoading: isRejecting }] = useRejectDeliveryPartnerMutation();
   const [suspendPartner, { isLoading: isSuspending }] = useSuspendDeliveryPartnerMutation();

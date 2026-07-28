@@ -3,6 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const seed = require('../seed');
+const { fixDeliveryPartnerGender } = require('../scripts/fixDeliveryPartnerGender');
 
 const router = express.Router();
 
@@ -22,6 +23,22 @@ router.post(
 
     await seed();
     new ApiResponse(200, null, 'Seed complete.').send(res);
+  })
+);
+
+// One-off in-place rename of already-seeded delivery-partner demo profiles that read as
+// female to fresh male names — same reachable-over-HTTP reasoning as /seed, gated by its own
+// secret. Never creates/deletes records or touches any other role. Pass `?dryRun=true` to
+// preview without writing.
+router.post(
+  '/fix-delivery-gender',
+  asyncHandler(async (req, res) => {
+    const configuredSecret = process.env.CLEANUP_SECRET;
+    if (!configuredSecret) throw ApiError.notFound('Not found.');
+    if (req.get('x-cleanup-secret') !== configuredSecret) throw ApiError.notFound('Not found.');
+
+    const summary = await fixDeliveryPartnerGender({ dryRun: req.query.dryRun === 'true' });
+    new ApiResponse(200, summary, 'Fix-up complete.').send(res);
   })
 );
 

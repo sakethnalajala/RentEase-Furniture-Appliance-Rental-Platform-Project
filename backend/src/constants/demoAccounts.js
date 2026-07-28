@@ -46,7 +46,7 @@ const DEMO_ACCOUNTS = {
 const DELIVERY_PARTNERS_BY_CITY = {
   Hyderabad: DEMO_ACCOUNTS.deliveryPartner,
   Bengaluru: {
-    name: 'Kavya Reddy',
+    name: 'Karthik Reddy',
     email: 'demo.delivery.bengaluru@rentease.com',
     password: 'Demo@1234',
     phone: '9000000013',
