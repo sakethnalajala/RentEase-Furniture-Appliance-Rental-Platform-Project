@@ -98,6 +98,11 @@ const register = asyncHandler(async (req, res) => {
     // to click a link in — see env.demoMode for the full rationale.
     isEmailVerified: env.demoMode,
     twoFactor: { mandatory: MANDATORY_2FA_ROLES.includes(role) },
+    // The registration form always collects a city, regardless of role — persist it as the
+    // account's own selectedCity immediately (not just used to seed demo data for
+    // vendor/delivery-partner/customer below) so city-scoped admin views find this account
+    // right away instead of only after the customer manually picks a city post-login.
+    selectedCity: cityId || undefined,
   });
 
   if (role === ROLES.VENDOR) {
