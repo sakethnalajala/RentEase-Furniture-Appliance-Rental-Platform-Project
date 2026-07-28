@@ -1,59 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="360" viewBox="0 0 1400 360" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="380" viewBox="0 0 1400 380">
   <defs>
     <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="55%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#f97316"/>
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="55%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#fb923c"/>
     </linearGradient>
     <linearGradient id="textGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="60%" stop-color="#7c6ff0"/>
-      <stop offset="100%" stop-color="#f97316"/>
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="55%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#fdba74"/>
     </linearGradient>
-    <radialGradient id="glow1" cx="0.2" cy="0.25" r="0.9">
-      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.16"/>
+    <radialGradient id="cardBg" cx="0.28" cy="0.22" r="1.05">
+      <stop offset="0%" stop-color="#171334"/>
+      <stop offset="55%" stop-color="#0e0f24"/>
+      <stop offset="100%" stop-color="#08080f"/>
+    </radialGradient>
+    <radialGradient id="blob1" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.55"/>
       <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow2" cx="0.85" cy="0.75" r="0.9">
-      <stop offset="0%" stop-color="#f97316" stop-opacity="0.14"/>
+    <radialGradient id="blob2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.45"/>
       <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
     </radialGradient>
-    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#6366f1" flood-opacity="0.28"/>
+    <radialGradient id="iconGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="borderSweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0"/>
+      <stop offset="45%" stop-color="#a78bfa" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#fb923c" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="rotate" from="0 700 190" to="360 700 190" dur="7s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="shimmerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="48%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="52%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" from="-1.6 0" to="1.6 0" dur="3.4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <mask id="wordmarkMask">
+      <text x="292" y="220" font-family="'Segoe UI','Inter',Arial,sans-serif" font-size="108" font-weight="800" fill="#ffffff">RentEase</text>
+    </mask>
+    <filter id="blurLg" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="26"/>
     </filter>
+    <filter id="blurSm" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <clipPath id="cardClip">
+      <rect x="3" y="3" width="1394" height="374" rx="34"/>
+    </clipPath>
   </defs>
 
-  <rect width="1400" height="360" fill="url(#glow1)"/>
-  <rect width="1400" height="360" fill="url(#glow2)"/>
+  <!-- Animated rotating gradient border glow -->
+  <rect x="0" y="0" width="1400" height="380" rx="36" fill="url(#borderSweep)"/>
 
-  <!-- Mark -->
-  <g filter="url(#softShadow)">
-    <rect x="70" y="90" width="180" height="180" rx="44" fill="url(#brandGrad)"/>
-  </g>
-  <!-- Sofa/home glyph, simplified, inside the mark -->
-  <g transform="translate(105,132)">
-    <path d="M12 62 V40 a14 14 0 0 1 14-14 h84 a14 14 0 0 1 14 14 v22" stroke="white" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <rect x="4" y="58" width="30" height="34" rx="9" fill="white"/>
-    <rect x="86" y="58" width="30" height="34" rx="9" fill="white"/>
-    <rect x="4" y="86" width="112" height="12" rx="6" fill="white"/>
-    <circle cx="20" cy="104" r="7" fill="white"/>
-    <circle cx="100" cy="104" r="7" fill="white"/>
-  </g>
+  <!-- Card body -->
+  <g clip-path="url(#cardClip)">
+    <rect x="3" y="3" width="1394" height="374" rx="34" fill="url(#cardBg)"/>
 
-  <!-- Wordmark -->
-  <text x="290" y="205" font-family="'Segoe UI', 'Inter', Arial, sans-serif" font-size="104" font-weight="800" fill="#0f172a">Rent<tspan fill="url(#textGrad)">Ease</tspan></text>
+    <!-- Ambient grid -->
+    <g opacity="0.05" stroke="#ffffff" stroke-width="1">
+      <path d="M0 95 H1400 M0 190 H1400 M0 285 H1400"/>
+      <path d="M175 0 V380 M525 0 V380 M875 0 V380 M1225 0 V380"/>
+    </g>
 
-  <!-- Tagline -->
-  <text x="294" y="255" font-family="'Segoe UI', 'Inter', Arial, sans-serif" font-size="30" font-weight="500" fill="#64748b">Furniture &amp; Appliance Rental Platform</text>
+    <!-- Floating glow blobs -->
+    <circle cx="120" cy="80" r="150" fill="url(#blob1)" filter="url(#blurLg)">
+      <animate attributeName="cx" values="120;190;120" dur="9s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="80;140;80" dur="11s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="1260" cy="320" r="170" fill="url(#blob2)" filter="url(#blurLg)">
+      <animate attributeName="cx" values="1260;1180;1260" dur="10s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="320;250;320" dur="8s" repeatCount="indefinite"/>
+    </circle>
 
-  <!-- Divider dot row -->
-  <g transform="translate(294,285)" fill="#94a3b8" font-family="'Segoe UI', 'Inter', Arial, sans-serif" font-size="22" font-weight="600">
-    <text x="0" y="20">4 Cities</text>
-    <circle cx="92" cy="14" r="3"/>
-    <text x="108" y="20">4 Roles</text>
-    <circle cx="204" cy="14" r="3"/>
-    <text x="220" y="20">116+ API Endpoints</text>
-    <circle cx="452" cy="14" r="3"/>
-    <text x="468" y="20">MERN Stack</text>
+    <!-- Icon with floating animation -->
+    <g transform="translate(75,95)">
+      <animateTransform attributeName="transform" type="translate" additive="sum" values="0 0; 0 -10; 0 0" dur="4s" repeatCount="indefinite"/>
+
+      <circle cx="90" cy="90" r="110" fill="url(#iconGlow)" filter="url(#blurSm)">
+        <animate attributeName="r" values="100;118;100" dur="3.2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.55;0.9;0.55" dur="3.2s" repeatCount="indefinite"/>
+      </circle>
+
+      <rect x="0" y="0" width="180" height="180" rx="44" fill="url(#brandGrad)"/>
+      <g transform="translate(35,42)">
+        <path d="M12 62 V40 a14 14 0 0 1 14-14 h84 a14 14 0 0 1 14 14 v22" stroke="white" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <rect x="4" y="58" width="30" height="34" rx="9" fill="white"/>
+        <rect x="86" y="58" width="30" height="34" rx="9" fill="white"/>
+        <rect x="4" y="86" width="112" height="12" rx="6" fill="white"/>
+        <circle cx="20" cy="104" r="7" fill="white"/>
+        <circle cx="100" cy="104" r="7" fill="white"/>
+      </g>
+    </g>
+
+    <!-- Wordmark: solid readable base + gradient "Ease" + animated shimmer sweep masked to the glyphs -->
+    <text x="292" y="220" font-family="'Segoe UI','Inter',Arial,sans-serif" font-size="108" font-weight="800" fill="#f8fafc">Rent<tspan fill="url(#textGrad)">Ease</tspan></text>
+    <rect x="280" y="115" width="750" height="130" fill="url(#shimmerGrad)" mask="url(#wordmarkMask)"/>
+
+    <!-- Tagline -->
+    <text x="296" y="270" font-family="'Segoe UI','Inter',Arial,sans-serif" font-size="30" font-weight="500" fill="#a5adc7">Furniture &amp; Appliance Rental Platform</text>
+
+    <!-- Stat row -->
+    <g transform="translate(296,300)" fill="#8892b0" font-family="'Segoe UI','Inter',Arial,sans-serif" font-size="22" font-weight="600">
+      <circle cx="4" cy="14" r="4" fill="#4ade80"/>
+      <text x="18" y="20" fill="#c7d2fe">Live in 4 cities</text>
+      <circle cx="246" cy="14" r="3"/>
+      <text x="262" y="20">4 platform roles</text>
+      <circle cx="490" cy="14" r="3"/>
+      <text x="506" y="20">121 API endpoints</text>
+      <circle cx="747" cy="14" r="3"/>
+      <text x="763" y="20">MERN stack</text>
+    </g>
   </g>
 </svg>

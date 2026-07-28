@@ -23,6 +23,10 @@ A production-grade, multi-vendor, multi-city rental marketplace with four purpos
 🔗 **Live Application →** [rentease-furniture-rental-ecru.vercel.app](https://rentease-furniture-rental-ecru.vercel.app)
 &nbsp;·&nbsp; 💻 **Source →** [github.com/sakethnalajala/RentEase-Furniture-Appliance-Rental-Platform-Project](https://github.com/sakethnalajala/RentEase-Furniture-Appliance-Rental-Platform-Project)
 
+<br/>
+
+<img src="docs/assets/screenshots/home.png" alt="RentEase homepage" width="880" style="border-radius:12px;border:1px solid #30363d;" />
+
 </div>
 
 ---
