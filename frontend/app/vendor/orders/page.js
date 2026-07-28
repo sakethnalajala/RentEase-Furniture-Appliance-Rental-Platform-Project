@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
-import { Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Receipt, CalendarClock, Truck, PackageCheck, Wallet } from 'lucide-react';
+import { Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Receipt, CalendarClock, Calendar, Truck, PackageCheck, Wallet } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
@@ -127,6 +127,9 @@ function RealOrderCard({ order }) {
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-200/70 pt-3 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
         <span className="flex items-center gap-1">
           <Receipt size={11} /> {order.order?.invoiceNumber || '—'}
+        </span>
+        <span className="flex items-center gap-1">
+          <Calendar size={11} /> Ordered {formatDate(order.order?.placedAt || order.createdAt)}
         </span>
         <span className="flex items-center gap-1">
           <CalendarClock size={11} />

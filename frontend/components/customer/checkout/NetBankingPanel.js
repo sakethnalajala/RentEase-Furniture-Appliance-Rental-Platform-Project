@@ -32,7 +32,7 @@ export default function NetBankingPanel({ amount, submitting, onConfirm }) {
       </div>
 
       <Button className="w-full" disabled={!bank} loading={submitting} onClick={onConfirm}>
-        {submitting ? 'Redirecting to bank…' : bank ? `Proceed to ${bank} Net Banking` : 'Select a bank to continue'}
+        {submitting ? 'Redirecting to bank…' : bank ? 'Place Your Order' : 'Select a bank to continue'}
       </Button>
       <p className="text-center text-xs text-slate-500 dark:text-slate-400">
         Amount to pay: <span className="font-semibold text-slate-700 dark:text-slate-200">₹{amount.toLocaleString('en-IN')}</span>

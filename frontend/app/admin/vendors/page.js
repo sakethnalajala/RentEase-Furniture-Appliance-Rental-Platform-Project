@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
-import { Building2, CheckCircle2, XCircle, ArrowRight, Users, PauseCircle, RotateCcw, Search, Pencil, Trash2 } from 'lucide-react';
+import { Building2, CheckCircle2, XCircle, ArrowRight, Users, PauseCircle, RotateCcw, Search, Pencil, Trash2, Phone, Clock } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -19,7 +19,7 @@ import {
   useReactivateVendorApplicationMutation,
   useAdminDeleteVendorMutation,
 } from '@/store/adminApi';
-import { money } from '@/lib/deliveryHelpers';
+import { money, formatDate, initials } from '@/lib/deliveryHelpers';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const TABS = [
@@ -154,17 +154,36 @@ export default function VendorManagementPage() {
           {vendors.map((vendor) => (
             <Card key={vendor._id} variant="glass" className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
               <Link href={`/admin/vendors/${vendor._id}`} className="flex flex-1 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:bg-brand-400/10 dark:text-brand-300">
-                  <Building2 size={20} />
-                </span>
+                {vendor.user?.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={vendor.user.avatar}
+                    alt={vendor.user?.name}
+                    className="h-11 w-11 shrink-0 rounded-xl object-cover shadow-premium"
+                  />
+                ) : (
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:bg-brand-400/10 dark:text-brand-300">
+                    {vendor.user?.name ? initials(vendor.user.name) : <Building2 size={20} />}
+                  </span>
+                )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{vendor.businessName}</p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                     {vendor.user?.name} · {vendor.user?.email} · {vendor.city?.name}
                     {vendor.area ? `, ${vendor.area}` : ''}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-400">
-                    {vendor.productsCount ?? 0} products · {money(vendor.revenue)} revenue
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 truncate text-xs text-slate-400">
+                    {vendor.user?.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone size={11} /> {vendor.user.phone}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Clock size={11} /> Joined {formatDate(vendor.user?.createdAt || vendor.createdAt)}
+                    </span>
+                    <span>
+                      {vendor.productsCount ?? 0} products · {money(vendor.revenue)} revenue
+                    </span>
                   </p>
                 </div>
               </Link>

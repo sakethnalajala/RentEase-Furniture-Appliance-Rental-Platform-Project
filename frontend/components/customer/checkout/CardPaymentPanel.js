@@ -94,9 +94,12 @@ export default function CardPaymentPanel({ amount, submitting, onConfirm }) {
       <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
         <Lock size={11} /> Demo form — format/length validated only, no real card is charged.
       </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Amount to pay: <span className="font-semibold text-slate-700 dark:text-slate-200">₹{amount.toLocaleString('en-IN')}</span>
+      </p>
 
       <Button type="submit" className="w-full" loading={submitting}>
-        {submitting ? 'Processing payment…' : `Pay ₹${amount.toLocaleString('en-IN')}`}
+        {submitting ? 'Processing payment…' : 'Place Your Order'}
       </Button>
     </form>
   );

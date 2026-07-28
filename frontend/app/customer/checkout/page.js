@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, CreditCard } from 'lucide-react';
 import Card from '@/components/ui/Card';
-import { useListAddressesQuery } from '@/store/customerApi';
+import { useListAddressesQuery, useCreateAddressMutation } from '@/store/customerApi';
 import { useCheckoutMutation } from '@/store/orderApi';
 import { clearCheckoutDraft } from '@/store/checkoutSlice';
 import { PAYMENT_METHODS, resolveBackendPaymentMethod } from '@/lib/checkoutMethods';
@@ -38,6 +38,7 @@ export default function CheckoutPage() {
   const draftItems = useSelector((state) => state.checkout.items);
   const { data: addressesData } = useListAddressesQuery();
   const [checkout] = useCheckoutMutation();
+  const [createAddress] = useCreateAddressMutation();
 
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [hasPrefilled, setHasPrefilled] = useState(false);
@@ -138,6 +139,22 @@ export default function CheckoutPage() {
       const res = await checkout(payload).unwrap();
       setSuccessResult(res.data);
       dispatch(clearCheckoutDraft());
+
+      // Persist a freshly-typed address to this customer's own address book so future
+      // checkouts can auto-fill it — but only if it isn't already one of their saved
+      // addresses, so re-ordering to the same place doesn't spam duplicates.
+      if (!selectedAddressId) {
+        createAddress({
+          contactName: addressForm.contactName,
+          contactPhone: addressForm.contactPhone,
+          addressLine1: addressForm.addressLine1,
+          addressLine2: addressForm.addressLine2,
+          city: draftItems[0]?.city?.id,
+          state: addressForm.state,
+          pincode: addressForm.pincode,
+          isDefault: addresses.length === 0,
+        }).catch(() => {});
+      }
     } catch (err) {
       toast.error(err?.data?.message || 'Checkout failed — please try again.');
     } finally {

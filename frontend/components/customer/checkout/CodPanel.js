@@ -16,7 +16,7 @@ export default function CodPanel({ amount, submitting, onConfirm }) {
         </p>
       </div>
       <Button className="w-full sm:w-auto" loading={submitting} onClick={onConfirm}>
-        Confirm order
+        Place Your Order
       </Button>
     </div>
   );

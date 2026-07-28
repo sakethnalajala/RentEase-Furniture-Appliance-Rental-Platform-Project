@@ -58,7 +58,7 @@ export default function UpiQrPanel({ methodId, amount, submitting, onConfirm }) 
       </p>
 
       <Button className="w-full sm:w-auto" loading={submitting} disabled={!qr} onClick={onConfirm}>
-        {submitting ? 'Verifying payment…' : "I've completed the payment"}
+        {submitting ? 'Verifying payment…' : 'Place Your Order'}
       </Button>
     </div>
   );

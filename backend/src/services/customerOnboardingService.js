@@ -5,7 +5,6 @@ const RentalPlan = require('../models/RentalPlan');
 const City = require('../models/City');
 const Wishlist = require('../models/Wishlist');
 const Cart = require('../models/Cart');
-const Address = require('../models/Address');
 const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 const Payment = require('../models/Payment');
@@ -24,12 +23,13 @@ const shuffle = (arr) => {
 };
 const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex');
 
-// Real Wishlist/Cart/Address/Order documents against the ACTUAL existing product catalog (no
-// fabricated products) — so a brand new customer's Wishlist, Cart, Addresses, Notifications,
-// and Rentals stats (see the Customer Profile page) are genuinely theirs from the first login
-// instead of an empty account. City-scoped where the field exists, falling back to any active
-// product if this account's city has none (shouldn't happen for the four seeded metros, but
-// keeps this from silently no-op'ing if it ever does).
+// Real Wishlist/Cart/Order documents against the ACTUAL existing product catalog (no
+// fabricated products) — so a brand new customer's Wishlist, Cart, Notifications, and Rentals
+// stats (see the Customer Profile page) are genuinely theirs from the first login instead of
+// an empty account. The Address book is intentionally left empty — see note below. City-scoped
+// where the field exists, falling back to any active product if this account's city has none
+// (shouldn't happen for the four seeded metros, but keeps this from silently no-op'ing if it
+// ever does).
 async function generateCustomerDemoData(user, cityId) {
   const existing = await Wishlist.findOne({ user: user._id });
   if (existing) return { skipped: true };
@@ -68,20 +68,12 @@ async function generateCustomerDemoData(user, cityId) {
     }),
   });
 
-  // Address: one default address in this customer's own city.
+  // NOTE: we deliberately do NOT create an Address document here. A customer's delivery
+  // address is personal — auto-fabricating one and marking it isDefault would silently
+  // prefill the checkout form with an address the customer never entered. The address book
+  // starts empty; `addr` below is only used as a delivery-address snapshot embedded on the
+  // historical demo Orders (never exposed as a "saved address" or auto-filled anywhere).
   const addr = pick(DELIVERY_ADDRESSES);
-  await Address.create({
-    user: user._id,
-    label: 'Home',
-    contactName: user.name,
-    contactPhone: user.phone || '9000000000',
-    addressLine1: addr.addressLine1,
-    addressLine2: addr.addressLine2,
-    city: effectiveCityId,
-    state: stateName,
-    pincode: '500' + (10 + Math.floor(Math.random() * 90)),
-    isDefault: true,
-  });
 
   // Rental history: 2-4 real Orders/OrderItems/Payments, a mix of an in-progress rental and
   // completed ones, so the Profile's Active/Completed Rental stats and Total Spending are
@@ -203,7 +195,7 @@ async function generateCustomerDemoData(user, cityId) {
   });
   await Notification.insertMany(notifDocs);
 
-  logger.success(`Onboarded customer "${user.name}": wishlist, cart, address, ${seeded} orders, notifications seeded.`);
+  logger.success(`Onboarded customer "${user.name}": wishlist, cart, ${seeded} orders, notifications seeded.`);
   return { orders: seeded };
 }
 

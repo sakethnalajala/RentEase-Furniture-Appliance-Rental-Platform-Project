@@ -22,7 +22,7 @@ import {
   useAdminDeleteDeliveryPartnerMutation,
 } from '@/store/adminApi';
 import EditDeliveryPartnerModal from '@/components/admin/EditDeliveryPartnerModal';
-import { initials } from '@/lib/deliveryHelpers';
+import { initials, formatDate } from '@/lib/deliveryHelpers';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
@@ -119,6 +119,9 @@ function DeliveryPartnerCard({ partner, onApprove, onReject, onSuspend, onReacti
           </p>
           <p className="flex items-center gap-1.5 capitalize">
             <VehicleIcon size={12} className="shrink-0" /> {partner.vehicleType} · {partner.vehicleNumber}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <Clock size={12} className="shrink-0" /> Joined {formatDate(partner.createdAt)}
           </p>
         </div>
 

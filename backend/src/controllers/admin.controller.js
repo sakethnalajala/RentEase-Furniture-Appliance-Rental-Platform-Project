@@ -91,7 +91,7 @@ const listVendors = asyncHandler(async (req, res) => {
   if (city) filter.city = city;
 
   let vendors = await Vendor.find(filter)
-    .populate('user', 'name email phone createdAt')
+    .populate('user', 'name email phone avatar createdAt')
     .populate('city', 'name state')
     .sort({ createdAt: -1 });
 

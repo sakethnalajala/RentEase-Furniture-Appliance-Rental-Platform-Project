@@ -131,6 +131,9 @@ export default function AdminCustomersPage() {
                   </div>
 
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <Badge variant={customer.isActive === false ? 'accent' : 'success'}>
+                      {customer.isActive === false ? 'Inactive' : 'Active'}
+                    </Badge>
                     <Badge variant="brand">
                       <ShoppingBag size={11} /> {customer.totalOrders ?? 0} orders
                     </Badge>
