@@ -41,8 +41,12 @@ async function fixDeliveryPartnerGender({ dryRun = false } = {}) {
     const user = partner.user;
     if (!user || !isFemaleName(user.name)) continue;
 
+    // Prime-step offset on the surname index so it doesn't stay locked to the same value for
+    // the first MALE_FIRST.length renames (dividing would give everyone "Sharma" until the
+    // 30th rename) — every one of the first min(30,30) renames gets a genuinely distinct
+    // first+last combination instead.
     const first = MALE_FIRST[idx % MALE_FIRST.length];
-    const last = LAST[Math.floor(idx / MALE_FIRST.length) % LAST.length];
+    const last = LAST[(idx * 7 + 3) % LAST.length];
     const newName = `${first} ${last}`;
     idx++;
 
