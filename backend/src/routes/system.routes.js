@@ -53,14 +53,6 @@ router.post(
   '/cleanup-test-accounts',
   asyncHandler(async (req, res) => {
     const configuredSecret = process.env.CLEANUP_SECRET;
-    if (req.get('x-cleanup-debug') === '1') {
-      return new ApiResponse(200, {
-        hasSecret: Boolean(configuredSecret),
-        configuredLength: (configuredSecret || '').length,
-        receivedLength: (req.get('x-cleanup-secret') || '').length,
-        matches: configuredSecret === req.get('x-cleanup-secret'),
-      }).send(res);
-    }
     if (!configuredSecret) throw ApiError.notFound('Not found.');
     if (req.get('x-cleanup-secret') !== configuredSecret) throw ApiError.notFound('Not found.');
 
