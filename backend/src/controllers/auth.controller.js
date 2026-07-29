@@ -14,7 +14,6 @@ const otpService = require('../services/otpService');
 const twoFactorService = require('../services/twoFactorService');
 const notificationService = require('../services/notificationService');
 const { generateVendorDemoData } = require('../services/vendorOnboardingService');
-const { generateCustomerDemoData } = require('../services/customerOnboardingService');
 const { generateDeliveryPartnerDemoData } = require('../services/deliveryOnboardingService');
 const Notification = require('../models/Notification');
 const logger = require('../utils/logger');
@@ -150,15 +149,6 @@ const register = asyncHandler(async (req, res) => {
       await generateDeliveryPartnerDemoData(partner);
     } catch (err) {
       logger.error(`Delivery partner onboarding data generation failed for user ${user._id}: ${err.message}`);
-    }
-  } else if (role === ROLES.CUSTOMER) {
-    // Wishlist/Cart/Address/Order history seeded from the real product catalog in this
-    // customer's own city — same "real account, real data, non-empty from first login"
-    // treatment vendors and delivery partners already get above.
-    try {
-      await generateCustomerDemoData(user, cityId);
-    } catch (err) {
-      logger.error(`Customer onboarding data generation failed for user ${user._id}: ${err.message}`);
     }
   } else if (role === ROLES.ADMIN) {
     // Admin dashboards are platform-wide (every vendor/customer/order/analytics figure is
@@ -491,13 +481,6 @@ const verifyPhoneOtp = asyncHandler(async (req, res) => {
       role: ROLES.CUSTOMER,
       isEmailVerified: true,
     });
-    // Same onboarding every other new customer gets (see register() above) — no city is known
-    // on this phone-only flow, so the service falls back to any active product catalog.
-    try {
-      await generateCustomerDemoData(user, null);
-    } catch (err) {
-      logger.error(`Customer onboarding data generation failed for user ${user._id}: ${err.message}`);
-    }
   }
 
   if (!user) throw ApiError.notFound('Account not found.');

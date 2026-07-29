@@ -5,10 +5,18 @@ import { Provider, useDispatch } from 'react-redux';
 import { makeStore } from './store';
 import { authApi } from './authApi';
 import { setAccessToken, setCredentials, setUnauthenticated } from './authSlice';
+import { clearRoleCookie } from '@/lib/cookies';
 
-// Access tokens live only in memory (Redux), so a hard refresh loses them. On first mount
-// we silently redeem the httpOnly refresh cookie for a new access token, then fetch the
-// current user — restoring the session without the user having to log in again.
+// Access tokens live only in memory (Redux), so a hard refresh loses them. On first mount we
+// ask whether the httpOnly refresh cookie is still good — but only actually restore the
+// session (populate Redux, land the user back in their dashboard) when that cookie was issued
+// with "Remember me" checked. Every other login (every demo login, every Google login, and any
+// manual login without the checkbox) is deliberately session-only: opening a fresh tab or
+// reloading must land back on the public Home page and require an explicit login, even though
+// the underlying refresh cookie is technically still valid for the rest of this browser
+// session — per product direction, only an explicit "Remember me" should ever silently resume
+// a session. The refresh call itself still happens (it's the only way to learn whether this
+// was a remembered session), its result is just discarded rather than applied when it wasn't.
 function SessionBootstrapper({ children }) {
   const dispatch = useDispatch();
   const ranOnce = useRef(false);
@@ -21,18 +29,14 @@ function SessionBootstrapper({ children }) {
       try {
         const refreshResult = await dispatch(authApi.endpoints.refresh.initiate()).unwrap();
         const accessToken = refreshResult?.data?.accessToken;
-        if (!accessToken) throw new Error('No access token returned');
+        if (!accessToken || !refreshResult?.data?.rememberMe) throw new Error('Not a remembered session');
 
         dispatch(setAccessToken(accessToken));
         const meResult = await dispatch(authApi.endpoints.getMe.initiate(undefined, { forceRefetch: true })).unwrap();
-        // Re-apply the exact same rememberMe the backend reports for this session (echoed back
-        // on every /auth/refresh) so the non-httpOnly rentease_role cookie stays in lockstep
-        // with the real httpOnly refresh cookie's own persistence — otherwise a remembered
-        // session would get silently downgraded to session-only the first time this bootstrapper
-        // runs after a browser restart.
-        dispatch(setCredentials({ user: meResult.data, accessToken, rememberMe: refreshResult?.data?.rememberMe }));
+        dispatch(setCredentials({ user: meResult.data, accessToken, rememberMe: true }));
       } catch (err) {
         dispatch(setUnauthenticated());
+        if (typeof window !== 'undefined') clearRoleCookie();
       }
     })();
   }, [dispatch]);

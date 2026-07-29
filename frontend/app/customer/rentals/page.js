@@ -5,16 +5,25 @@ import { Package, History, Wrench, Receipt, FileText, Star, Bell, ArrowRight } f
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import Badge from '@/components/ui/Badge';
+import { useListMyOrderItemsQuery, useListMyPaymentsQuery } from '@/store/orderApi';
 import { useMockRentals } from '@/hooks/useMockRentals';
 
 export default function RentalsHubPage() {
-  const { isLoading, rentalHistory, payments, maintenanceRequests } = useMockRentals();
+  const { data: allItemsData, isLoading: loadingItems } = useListMyOrderItemsQuery();
+  const { data: paymentsData, isLoading: loadingPayments } = useListMyPaymentsQuery();
+  // Maintenance Requests / Reviews aren't part of this pass's real-data migration (see
+  // customer/rentals/maintenance and customer/reviews — untouched, still their existing
+  // behavior) — only their counts are still sourced from the mock hook here.
+  const { maintenanceRequests } = useMockRentals();
 
-  const activeCount = rentalHistory.filter((r) => r.status === 'active').length;
+  const allItems = allItemsData?.data || [];
+  const payments = paymentsData?.data || [];
+  const activeCount = allItems.filter((r) => r.status === 'active_rental').length;
+  const isLoading = loadingItems || loadingPayments;
 
   const CARDS = [
     { href: '/customer/rentals/current', icon: Package, title: 'Current Rentals', body: 'Products you’re renting right now.', count: activeCount },
-    { href: '/customer/rentals/history', icon: History, title: 'Rental History', body: 'Every rental you’ve completed, cancelled, or extended.', count: rentalHistory.length },
+    { href: '/customer/rentals/history', icon: History, title: 'Rental History', body: 'Every rental you’ve completed, cancelled, or extended.', count: allItems.length },
     { href: '/customer/rentals/payments', icon: Receipt, title: 'Payment History', body: 'Transactions, methods, and statuses.', count: payments.length },
     { href: '/customer/rentals/invoices', icon: FileText, title: 'Invoices', body: 'Download or print a formatted invoice.', count: payments.length },
     { href: '/customer/rentals/maintenance', icon: Wrench, title: 'Maintenance Requests', body: 'Report issues and track technicians.', count: maintenanceRequests.length },

@@ -7,11 +7,18 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
 import RentalStatusBadge from '@/components/customer/RentalStatusBadge';
-import { useMockRentals } from '@/hooks/useMockRentals';
+import { useListMyOrderItemsQuery } from '@/store/orderApi';
 
 export default function CurrentRentalsPage() {
-  const { isLoading, rentalHistory } = useMockRentals();
-  const activeRentals = rentalHistory.filter((r) => r.status === 'active');
+  const { data, isLoading } = useListMyOrderItemsQuery({ status: 'active_rental' });
+  const activeRentals = (data?.data || []).map((item) => ({
+    id: item.order?.orderNumber || item._id,
+    product: item.product,
+    status: 'active',
+    rentalEnd: item.rentalEndDate,
+    durationMonths: item.rentalPlan?.durationMonths,
+    monthlyRent: item.monthlyRentalPrice,
+  }));
 
   return (
     <div className="space-y-6">

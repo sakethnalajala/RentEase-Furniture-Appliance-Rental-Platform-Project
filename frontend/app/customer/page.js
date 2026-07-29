@@ -29,9 +29,9 @@ import {
   useGetCartQuery,
   useGetWishlistQuery,
 } from '@/store/customerApi';
+import { useListMyOrderItemsQuery } from '@/store/orderApi';
 import { useWishlistToggle } from '@/hooks/useWishlistToggle';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
-import { useMockRentals } from '@/hooks/useMockRentals';
 import { fadeInUp, staggerContainer } from '@/lib/motion';
 
 const CATEGORY_VISUALS = {
@@ -81,7 +81,7 @@ export default function CustomerDashboardPage() {
   const { data: cart } = useGetCartQuery();
   const { data: wishlist } = useGetWishlistQuery();
   const { recentlyViewedIds } = useRecentlyViewed();
-  const { rentalHistory, isLoading: loadingRentals } = useMockRentals();
+  const { data: activeRentalsData, isLoading: loadingRentals } = useListMyOrderItemsQuery({ status: 'active_rental' });
   const { wishlistIds, toggle, isLoading: wishlistToggling } = useWishlistToggle();
 
   const cityFilter = selectedCity?.id;
@@ -104,7 +104,7 @@ export default function CustomerDashboardPage() {
   const categories = categoriesData?.data || [];
   const cartItems = cart?.data?.items || [];
   const wishlistItems = wishlist?.data || [];
-  const activeRentals = rentalHistory.filter((r) => r.status === 'active');
+  const activeRentals = activeRentalsData?.data || [];
   const nextDelivery = activeRentals[0];
 
   return (

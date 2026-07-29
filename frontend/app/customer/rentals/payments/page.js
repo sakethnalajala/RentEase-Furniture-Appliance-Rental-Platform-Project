@@ -7,13 +7,15 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
-import { useMockRentals } from '@/hooks/useMockRentals';
+import { useListMyPaymentsQuery } from '@/store/orderApi';
 import { printInvoice, downloadInvoice } from '@/lib/invoice';
+import { toPaymentViewModel } from '@/lib/paymentViewModel';
 
-const STATUS_VARIANT = { paid: 'success', refunded: 'accent', pending: 'neutral' };
+const STATUS_VARIANT = { paid: 'success', refunded: 'accent', partially_refunded: 'accent', failed: 'accent', pending: 'neutral' };
 
 export default function PaymentHistoryPage() {
-  const { isLoading, payments } = useMockRentals();
+  const { data, isLoading } = useListMyPaymentsQuery();
+  const payments = (data?.data || []).map(toPaymentViewModel);
 
   return (
     <div className="space-y-6">

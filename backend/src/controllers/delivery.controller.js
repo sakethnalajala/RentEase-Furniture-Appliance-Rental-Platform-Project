@@ -193,13 +193,26 @@ const acceptRequest = asyncHandler(async (req, res) => {
   }
   const vendorPop = await OrderItem.findById(item._id).populate('vendor', 'user');
   if (vendorPop?.vendor?.user) {
+    // The notification list itself only ever shows a summary line (same as every other
+    // notification type in this app) — the full profile photo, live map and pickup/delivery
+    // addresses this event is really about live on the Vendor Orders "Track Delivery" panel,
+    // which this notification's meta.orderNumber lets the vendor find immediately.
     await Notification.create({
       user: vendorPop.vendor.user,
       title: 'Delivery partner assigned',
-      message: `${req.user.name} accepted delivery for Order #${order?.orderNumber || item._id}.`,
+      message: `${req.user.name} accepted delivery for Order #${order?.orderNumber || item._id}. ${partner.vehicleType === 'van' ? 'Van' : partner.vehicleType === 'truck' ? 'Truck' : 'Bike'} · ${partner.vehicleNumber} · ${req.user.phone || 'no phone on file'}. Open Track Delivery on this order for live status and map.`,
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
-      meta: { orderNumber: order?.orderNumber, deliveryPartnerName: req.user.name },
+      meta: {
+        orderNumber: order?.orderNumber,
+        deliveryPartnerName: req.user.name,
+        deliveryPartnerPhone: req.user.phone,
+        deliveryPartnerEmail: req.user.email,
+        vehicleType: partner.vehicleType,
+        vehicleNumber: partner.vehicleNumber,
+        rating: partner.averageRating,
+        status: 'Accepted',
+      },
     });
   }
   const admins = await User.find({ role: ROLES.ADMIN }).select('_id');

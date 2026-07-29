@@ -14,6 +14,7 @@ const Cart = require('../models/Cart');
 const Vendor = require('../models/Vendor');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const User = require('../models/User');
+const City = require('../models/City');
 const Notification = require('../models/Notification');
 const { ORDER_ITEM_STATUS, ORDER_STATUS, PAYMENT_STATUS, NON_CANCELLABLE_STATUSES } = require('../constants/orderStatus');
 const { INVENTORY_STATUS, VENDOR_STATUS } = require('../constants/inventoryStatus');
@@ -40,7 +41,7 @@ const generateInvoiceNumber = () =>
 const ORDER_ITEM_POPULATE = [
   { path: 'product', select: 'name images subCategory brand city monthlyRentalPrice securityDeposit deliveryCharge installationRequired estimatedDeliveryDays', populate: { path: 'city', select: 'name state' } },
   { path: 'rentalPlan', select: 'durationMonths label discountPercent' },
-  { path: 'vendor', select: 'businessName' },
+  { path: 'vendor', select: 'businessName businessAddress warehouseLocation' },
   {
     path: 'deliveryPartner',
     populate: [
@@ -49,6 +50,63 @@ const ORDER_ITEM_POPULATE = [
     ],
   },
 ];
+
+// Deterministic per-entity offset (not Math.random — this needs to land on the same point
+// every time the same order is re-fetched) so the vendor/customer map pins don't sit exactly
+// on top of the city center when there's no real geocoded location to plot instead. Same
+// spirit as delivery.controller.js's estimateDistanceKm.
+function stableJitter(seed, spreadDeg = 0.035) {
+  let h = 0;
+  const str = String(seed);
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  const angle = (h % 360) * (Math.PI / 180);
+  return { dLat: Math.sin(angle) * spreadDeg, dLng: Math.cos(angle) * spreadDeg };
+}
+
+// Real coordinates where this app actually has them (a vendor's own warehouseLocation, a
+// delivery partner's live currentLocation); a stable jittered point around the order's city
+// center everywhere else, since neither Product.city nor Order.deliveryAddress carries real
+// geocoding — same "simulated but consistent" pattern as delivery fee/distance elsewhere in
+// this codebase. Powers the vendor's delivery-tracking map.
+function withMapFields(item, cityDoc) {
+  const cityCenter = cityDoc?.lat != null && cityDoc?.lng != null ? { lat: cityDoc.lat, lng: cityDoc.lng } : null;
+
+  const warehouse = item.vendor?.warehouseLocation;
+  const pickupJitter = stableJitter(`pickup-${item.vendor?._id || item._id}`);
+  const pickupLocation =
+    warehouse?.lat != null && warehouse?.lng != null
+      ? { lat: warehouse.lat, lng: warehouse.lng, label: warehouse.name || item.vendor?.businessName || 'Vendor pickup point' }
+      : cityCenter
+        ? { lat: cityCenter.lat + pickupJitter.dLat, lng: cityCenter.lng + pickupJitter.dLng, label: item.vendor?.businessName || 'Vendor pickup point' }
+        : null;
+
+  const partnerLoc = item.deliveryPartner?.currentLocation;
+  const deliveryPartnerLocation =
+    partnerLoc?.lat != null && partnerLoc?.lng != null
+      ? { lat: partnerLoc.lat, lng: partnerLoc.lng, label: item.deliveryPartner?.user?.name || 'Delivery partner' }
+      : null;
+
+  const customerJitter = stableJitter(`customer-${item.order?._id || item._id}`);
+  const customerLocation = cityCenter
+    ? {
+        lat: cityCenter.lat + customerJitter.dLat,
+        lng: cityCenter.lng + customerJitter.dLng,
+        label: item.order?.deliveryAddress?.addressLine1 || 'Delivery address',
+      }
+    : null;
+
+  // A single friendly stage name for the tracking timeline, derived from the same real
+  // timestamps the Pickup/Delivery badges already use — no separate status field to keep in
+  // sync.
+  let deliveryStage = 'Not yet assigned';
+  if (item.deliveryPartner) {
+    if (item.deliveredAt) deliveryStage = 'Delivered';
+    else if (item.pickedUpAt) deliveryStage = 'On the Way';
+    else deliveryStage = 'Heading to Pickup';
+  }
+
+  return { ...item, pickupLocation, deliveryPartnerLocation, customerLocation, deliveryStage };
+}
 
 // A demo-but-realistic checkout: every payment method "succeeds" immediately (no real gateway
 // is configured — see backend/.env.example's dev-mode-fallback pattern used across this app),
@@ -120,8 +178,8 @@ const checkout = asyncHandler(async (req, res) => {
     const deliveryCharge = product.deliveryCharge || 0;
 
     // Best-effort allocation of a real serialized unit for this rental — not a hard
-    // requirement (a vendor can still confirm/deliver without one), matching InventoryItem's
-    // own `default: null` on OrderItem.inventoryItem.
+    // requirement (delivery can still proceed without one), matching InventoryItem's own
+    // `default: null` on OrderItem.inventoryItem.
     const inventoryUnit = await InventoryItem.findOneAndUpdate(
       { product: product._id, status: INVENTORY_STATUS.AVAILABLE },
       { $set: { status: INVENTORY_STATUS.RESERVED } },
@@ -144,8 +202,14 @@ const checkout = asyncHandler(async (req, res) => {
       installationRequired: product.installationRequired,
       deliveryOtpHash: hashCode(plainOtp),
       deliveryOtp: plainOtp,
-      status: ORDER_ITEM_STATUS.PENDING,
-      statusHistory: [{ status: ORDER_ITEM_STATUS.PENDING, note: 'Order placed and paid.' }],
+      // Straight to confirmed — there is no vendor approval step in this app. A successful
+      // payment is the only gate an order needs; it's immediately valid and immediately an
+      // open delivery request (see delivery.controller.js's OPEN_REQUEST_STATUSES).
+      status: ORDER_ITEM_STATUS.CONFIRMED,
+      statusHistory: [
+        { status: ORDER_ITEM_STATUS.PENDING, note: 'Order placed and paid.' },
+        { status: ORDER_ITEM_STATUS.CONFIRMED, note: 'Automatically confirmed after successful payment.' },
+      ],
     });
 
     if (inventoryUnit) {
@@ -264,11 +328,10 @@ const checkout = asyncHandler(async (req, res) => {
   // customer's Notifications portal shows the same granular trail a real marketplace would:
   // the order being placed, payment clearing, the rental being confirmed, the delivery OTP
   // being generated, and the estimated delivery window, each as its own titled, timestamped,
-  // markable-as-read card. ("Vendor Confirmed Order" and "Delivery Partner Assigned" are the
-  // other two notifications in this trail — those fire later, from updateVendorItemStatus and
-  // delivery.controller.js's acceptRequest respectively, since they describe events that
-  // haven't happened yet at checkout time.) All persisted as real Notification documents, so
-  // they survive past the checkout success screen and across logout/login.
+  // markable-as-read card. ("Delivery Partner Assigned" is the other notification in this
+  // trail — it fires later, from delivery.controller.js's acceptRequest, since it describes an
+  // event that hasn't happened yet at checkout time.) All persisted as real Notification
+  // documents, so they survive past the checkout success screen and across logout/login.
   const paymentMethodLabels = {
     upi: 'UPI', credit_card: 'Credit Card', debit_card: 'Debit Card', net_banking: 'Net Banking', cod: 'Cash on Delivery',
   };
@@ -365,6 +428,20 @@ const listMyOrderItems = asyncHandler(async (req, res) => {
   ).send(res);
 });
 
+// Powers the customer-facing Payment History / Invoices pages — real Payment documents (one
+// per order, created at checkout) rather than the mock data those pages used to run on.
+const listMyPayments = asyncHandler(async (req, res) => {
+  const payments = await Payment.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: 'order',
+      select: 'orderNumber invoiceNumber totalMonthlyRental totalSecurityDeposit items',
+      populate: { path: 'items', populate: ORDER_ITEM_POPULATE },
+    })
+    .lean();
+  new ApiResponse(200, payments).send(res);
+});
+
 const getOrder = asyncHandler(async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, customer: req.user._id })
     .populate({ path: 'items', populate: ORDER_ITEM_POPULATE })
@@ -413,59 +490,16 @@ const listVendorOrderItems = asyncHandler(async (req, res) => {
     .populate(ORDER_ITEM_POPULATE)
     .populate({
       path: 'order',
-      select: 'orderNumber invoiceNumber customer deliveryAddress placedAt paymentStatus paymentMethod',
-      populate: { path: 'customer', select: 'name email phone' },
+      select: 'orderNumber invoiceNumber customer deliveryAddress placedAt paymentStatus paymentMethod city',
+      populate: [
+        { path: 'customer', select: 'name email phone' },
+        { path: 'city', select: 'name state lat lng' },
+      ],
     })
     .lean();
 
-  new ApiResponse(200, items).send(res);
-});
-
-const updateVendorItemStatus = asyncHandler(async (req, res) => {
-  const vendor = await Vendor.findOne({ user: req.user._id });
-  if (!vendor) throw ApiError.notFound('Vendor profile not found.');
-
-  const item = await OrderItem.findOne({ _id: req.params.itemId, vendor: vendor._id });
-  if (!item) throw ApiError.notFound('Order item not found.');
-
-  const { action, note } = req.body;
-
-  if (item.status !== ORDER_ITEM_STATUS.PENDING) {
-    throw ApiError.badRequest(`Only pending items can be ${action === 'confirm' ? 'confirmed' : 'rejected'}.`);
-  }
-
-  if (action === 'confirm') {
-    item.status = ORDER_ITEM_STATUS.CONFIRMED;
-    item.statusHistory.push({ status: ORDER_ITEM_STATUS.CONFIRMED, note: note || 'Confirmed by vendor.' });
-  } else {
-    item.status = ORDER_ITEM_STATUS.CANCELLED;
-    item.cancelReason = note || 'Rejected by vendor.';
-    item.statusHistory.push({ status: ORDER_ITEM_STATUS.CANCELLED, note: item.cancelReason });
-    if (item.inventoryItem) {
-      await InventoryItem.findByIdAndUpdate(item.inventoryItem, {
-        $set: { status: INVENTORY_STATUS.AVAILABLE, currentOrderItem: null },
-      });
-    }
-  }
-  await item.save();
-
-  const order = await Order.findById(item.order);
-  if (order) {
-    const product = await Product.findById(item.product).select('name');
-    await Notification.create({
-      user: order.customer,
-      title: action === 'confirm' ? 'Vendor Confirmed Order' : 'Your order was declined',
-      message:
-        action === 'confirm'
-          ? `Your order for ${product?.name || 'this item'} was confirmed by the vendor and is being prepared for delivery.\nOrder ID: ${order.orderNumber}`
-          : `Order ${order.orderNumber} was declined by the vendor: ${item.cancelReason}`,
-      type: 'order',
-      relatedEntity: { type: 'Order', id: order._id },
-      meta: { orderNumber: order.orderNumber, productName: product?.name, status: action === 'confirm' ? 'Confirmed' : 'Declined' },
-    });
-  }
-
-  new ApiResponse(200, item, action === 'confirm' ? 'Order confirmed.' : 'Order rejected.').send(res);
+  const withMaps = items.map((item) => withMapFields(item, item.order?.city));
+  new ApiResponse(200, withMaps).send(res);
 });
 
 // A scannable (but non-functional — no real bank sits behind it) UPI intent QR for the demo
@@ -484,8 +518,8 @@ module.exports = {
   getDemoUpiQr,
   listMyOrders,
   listMyOrderItems,
+  listMyPayments,
   getOrder,
   cancelOrderItem,
   listVendorOrderItems,
-  updateVendorItemStatus,
 };

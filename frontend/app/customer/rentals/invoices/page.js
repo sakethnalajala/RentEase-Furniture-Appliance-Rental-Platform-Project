@@ -6,11 +6,13 @@ import { ArrowLeft, FileText, Download, Eye } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
-import { useMockRentals } from '@/hooks/useMockRentals';
+import { useListMyPaymentsQuery } from '@/store/orderApi';
 import { viewInvoice, downloadInvoice } from '@/lib/invoice';
+import { toPaymentViewModel } from '@/lib/paymentViewModel';
 
 export default function InvoicesPage() {
-  const { isLoading, payments } = useMockRentals();
+  const { data, isLoading } = useListMyPaymentsQuery();
+  const payments = (data?.data || []).map(toPaymentViewModel);
 
   return (
     <div className="space-y-6">

@@ -11,8 +11,9 @@ function buildQueryString(params = {}) {
 
 export const orderApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    // Real checkout: creates a paid Order + OrderItem(s), immediately visible to the vendor
-    // (Orders) and, once the vendor confirms, to a delivery partner (Requests) — not demo data.
+    // Real checkout: creates a paid, automatically-confirmed Order + OrderItem(s), immediately
+    // visible to both the vendor (Orders) and every delivery partner in the order's city
+    // (Requests) — not demo data. There is no vendor approval step in this app.
     checkout: builder.mutation({
       query: (body) => ({ url: '/orders/checkout', method: 'POST', body }),
       invalidatesTags: ['MyOrders', 'Cart'],
@@ -31,6 +32,11 @@ export const orderApi = api.injectEndpoints({
       providesTags: ['MyOrders'],
       keepUnusedDataFor: 300,
     }),
+    listMyPayments: builder.query({
+      query: () => '/orders/my/payments',
+      providesTags: ['MyOrders'],
+      keepUnusedDataFor: 300,
+    }),
     getOrder: builder.query({
       query: (id) => `/orders/${id}`,
       providesTags: ['MyOrders'],
@@ -41,19 +47,11 @@ export const orderApi = api.injectEndpoints({
       invalidatesTags: ['MyOrders'],
     }),
 
-    // Vendor side
+    // Vendor side — view-only, no approve/reject action: orders auto-confirm at checkout.
     listVendorOrderItems: builder.query({
       query: (params) => `/orders/vendor/my${buildQueryString(params)}`,
       providesTags: ['VendorOrders'],
       keepUnusedDataFor: 300,
-    }),
-    updateVendorItemStatus: builder.mutation({
-      query: ({ itemId, action, note }) => ({
-        url: `/orders/vendor/items/${itemId}/status`,
-        method: 'PATCH',
-        body: { action, note },
-      }),
-      invalidatesTags: ['VendorOrders'],
     }),
   }),
 });
@@ -62,8 +60,8 @@ export const {
   useCheckoutMutation,
   useListMyOrdersQuery,
   useListMyOrderItemsQuery,
+  useListMyPaymentsQuery,
   useGetOrderQuery,
   useCancelOrderItemMutation,
   useListVendorOrderItemsQuery,
-  useUpdateVendorItemStatusMutation,
 } = orderApi;

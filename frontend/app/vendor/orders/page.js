@@ -2,24 +2,28 @@
 
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { toast } from 'sonner';
+import dynamic from 'next/dynamic';
 import {
-  Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Mail, Receipt, CalendarClock, Calendar, Truck,
-  PackageCheck, Wallet, Star, Bike, Car, User as UserIcon, Eye,
+  Search, ShoppingBag, ImageOff, Sparkles, MapPin, Phone, Mail, Receipt, CalendarClock, Calendar, Truck,
+  PackageCheck, Wallet, Star, Bike, Car, User as UserIcon, Eye, CheckCircle2, Circle, Building2, Navigation,
 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useGetMyVendorProfileQuery, useListMyProductsQuery } from '@/store/vendorApi';
-import { useListVendorOrderItemsQuery, useUpdateVendorItemStatusMutation } from '@/store/orderApi';
+import { useListVendorOrderItemsQuery } from '@/store/orderApi';
 import { buildVendorOrders, ORDER_STATUSES } from '@/lib/mockVendorData';
-import { formatDate, formatDateTime, money, initials } from '@/lib/deliveryHelpers';
+import { formatDate, formatDateTime, money, initials, formatAddress } from '@/lib/deliveryHelpers';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
+
+// Leaflet touches `window` at module load time, which breaks Next.js's server render of this
+// client component — dynamically imported with ssr disabled so it only ever loads in the
+// browser, same pattern Next.js documents for any Leaflet/Mapbox-style library.
+const DeliveryTrackingMap = dynamic(() => import('@/components/vendor/DeliveryTrackingMap'), { ssr: false });
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...ORDER_STATUSES.map((s) => ({ value: s, label: s }))];
 
@@ -56,17 +60,62 @@ const REAL_STATUS_LABELS = {
 
 const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
 
-// The full profile of whichever delivery partner accepted this specific order item — shown via
-// "View Delivery Partner" once one has, rather than the vendor's general fleet roster (Vendor →
+const TRACKING_STEPS = ['Accepted', 'Heading to Pickup', 'Picked Up', 'On the Way', 'Delivered'];
+
+// Which of the 5 steps above are complete, derived from the same real timestamps the
+// Pickup/Delivery badges use — "Accepted" and "Heading to Pickup" both land the instant a
+// partner accepts (there's no separate "left the warehouse" event tracked), and likewise
+// "Picked Up"/"On the Way" both land the instant pickedUpAt is set — so acceptance completes
+// steps 0-1 together and pickup completes steps 2-3 together, same honesty-about-what's-real
+// pattern as the rest of this app's simulated delivery pipeline.
+function trackingStepIndex(order) {
+  if (order.deliveredAt) return 4;
+  if (order.pickedUpAt) return 3;
+  if (order.deliveryAssignedAt) return 1;
+  return -1;
+}
+
+function TrackingTimeline({ order }) {
+  const stepIndex = trackingStepIndex(order);
+  return (
+    <div className="flex items-start justify-between gap-1">
+      {TRACKING_STEPS.map((label, i) => {
+        const done = i <= stepIndex;
+        return (
+          <div key={label} className="flex flex-1 flex-col items-center text-center">
+            <div className="flex w-full items-center">
+              {i > 0 && <span className={`h-0.5 flex-1 ${i <= stepIndex ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'}`} />}
+              {done ? (
+                <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+              ) : (
+                <Circle size={18} className="shrink-0 text-slate-300 dark:text-white/20" />
+              )}
+              {i < TRACKING_STEPS.length - 1 && (
+                <span className={`h-0.5 flex-1 ${i < stepIndex ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'}`} />
+              )}
+            </div>
+            <p className={`mt-1 text-[10px] leading-tight ${done ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+              {label}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// The full profile of whichever delivery partner accepted this specific order item, its
+// pickup/delivery locations, a live map, and a status timeline — shown via "Track Delivery"
+// once a partner has accepted, rather than the vendor's general fleet roster (Vendor →
 // Delivery Partners), since that page aggregates performance across every order, not this one.
-function DeliveryPartnerModal({ open, onClose, order }) {
+function TrackDeliveryModal({ open, onClose, order }) {
   const partner = order?.deliveryPartner;
   if (!partner) return null;
   const VehicleIcon = VEHICLE_ICONS[partner.vehicleType] || Truck;
   const avatarSrc = partner.user?.avatar || partner.profilePhoto;
 
   return (
-    <Modal open={open} onClose={onClose} title="Delivery Partner">
+    <Modal open={open} onClose={onClose} title="Track Delivery">
       <div className="flex items-center gap-3">
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -104,32 +153,38 @@ function DeliveryPartnerModal({ open, onClose, order }) {
         <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
           <UserIcon size={13} className="text-brand-500" /> <span className="capitalize">{partner.status || 'approved'}</span>
         </div>
-        <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+      </div>
+
+      <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm dark:border-white/10">
+        <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-300">
+          <Building2 size={13} className="mt-0.5 shrink-0 text-violet-500" />
+          <span>Pickup: {order.pickupLocation?.label || '—'}</span>
+        </div>
+        <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-300">
+          <Navigation size={13} className="mt-0.5 shrink-0 text-rose-500" />
+          <span>Deliver to: {formatAddress(order.order?.deliveryAddress) || order.customerLocation?.label || '—'}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
           <CalendarClock size={13} className="text-brand-500" />
           Assigned {order.deliveryAssignedAt ? formatDateTime(order.deliveryAssignedAt) : '—'}
         </div>
-        <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-          <Truck size={13} className="text-brand-500" /> Delivery status: {deliveryStatus(order)}
-        </div>
+      </div>
+
+      <div className="mt-4 border-t border-slate-200/70 pt-4 dark:border-white/10">
+        <DeliveryTrackingMap pickup={order.pickupLocation} partner={order.deliveryPartnerLocation} customer={order.customerLocation} />
+      </div>
+
+      <div className="mt-4 border-t border-slate-200/70 pt-4 dark:border-white/10">
+        <TrackingTimeline order={order} />
       </div>
     </Modal>
   );
 }
 
 function RealOrderCard({ order }) {
-  const [updateStatus, { isLoading }] = useUpdateVendorItemStatusMutation();
-  const [showPartner, setShowPartner] = useState(false);
+  const [showTracking, setShowTracking] = useState(false);
   const product = order.product;
   const customer = order.order?.customer;
-
-  const handle = async (action) => {
-    try {
-      await updateStatus({ itemId: order._id, action }).unwrap();
-      toast.success(action === 'confirm' ? 'Order confirmed.' : 'Order rejected.');
-    } catch (err) {
-      toast.error(err?.data?.message || 'Could not update this order.');
-    }
-  };
 
   const monthlyAmount = order.monthlyRentalPrice * order.quantity;
 
@@ -176,17 +231,6 @@ function RealOrderCard({ order }) {
         </div>
 
         <OrderStatusBadge status={REAL_STATUS_LABELS[order.status] || order.status} />
-
-        {order.status === 'pending' && (
-          <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-            <Button size="sm" loading={isLoading} onClick={() => handle('confirm')}>
-              <Check size={14} /> Confirm
-            </Button>
-            <Button size="sm" variant="ghost" loading={isLoading} onClick={() => handle('reject')}>
-              <X size={14} /> Reject
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Full order detail row — order id, invoice, rental window, payment/pickup/delivery
@@ -221,16 +265,16 @@ function RealOrderCard({ order }) {
             </Badge>
             <button
               type="button"
-              onClick={() => setShowPartner(true)}
+              onClick={() => setShowTracking(true)}
               className="focus-ring flex items-center gap-1 rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-900/10 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
             >
-              <Eye size={11} /> View Delivery Partner
+              <Eye size={11} /> Track Delivery
             </button>
           </>
         )}
       </div>
 
-      <DeliveryPartnerModal open={showPartner} onClose={() => setShowPartner(false)} order={order} />
+      <TrackDeliveryModal open={showTracking} onClose={() => setShowTracking(false)} order={order} />
     </Card>
   );
 }

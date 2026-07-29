@@ -8,12 +8,28 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Skeleton from '@/components/ui/Skeleton';
 import RentalStatusBadge from '@/components/customer/RentalStatusBadge';
-import { useMockRentals } from '@/hooks/useMockRentals';
+import { useListMyOrderItemsQuery } from '@/store/orderApi';
 
-const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+
+// active_rental -> 'active' so RentalStatusBadge's original 4-value palette still applies to
+// the one status this page most commonly shows; every other real OrderItem status (pending,
+// confirmed, out_for_delivery, ...) is passed straight through — the badge already has a
+// label/color for each of those too.
+const STATUS_MAP = { active_rental: 'active', returned: 'completed' };
 
 export default function RentalHistoryPage() {
-  const { isLoading, rentalHistory } = useMockRentals();
+  const { data, isLoading } = useListMyOrderItemsQuery();
+  const rentalHistory = (data?.data || []).map((item) => ({
+    id: item.order?.orderNumber || item._id,
+    product: item.product,
+    status: STATUS_MAP[item.status] || item.status,
+    rentalStart: item.rentalStartDate || item.order?.placedAt || item.createdAt,
+    rentalEnd: item.rentalEndDate,
+    durationMonths: item.rentalPlan?.durationMonths,
+    monthlyRent: item.monthlyRentalPrice,
+    deposit: item.securityDeposit,
+  }));
   const [selected, setSelected] = useState(null);
 
   return (

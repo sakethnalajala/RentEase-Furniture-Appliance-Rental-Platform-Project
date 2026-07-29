@@ -26,9 +26,4 @@ const checkoutSchema = z.object({
   clearCartItemIds: z.array(z.string()).optional().default([]),
 });
 
-const updateVendorItemStatusSchema = z.object({
-  action: z.enum(['confirm', 'reject']),
-  note: z.string().optional().default(''),
-});
-
-module.exports = { checkoutSchema, updateVendorItemStatusSchema };
+module.exports = { checkoutSchema };

@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Bell, CheckCheck, Trash2, Package, Wrench, CreditCard, Info } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Package, Wrench, CreditCard, Info, Truck, MapPin } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
@@ -99,8 +100,23 @@ export default function VendorNotificationsPage() {
                   <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{n.message}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
                     {n.meta?.customerName && <span>Customer: {n.meta.customerName}</span>}
+                    {n.meta?.deliveryPartnerName && (
+                      <span className="flex items-center gap-1">
+                        <Truck size={11} /> {n.meta.deliveryPartnerName}
+                        {n.meta.vehicleNumber ? ` · ${n.meta.vehicleNumber}` : ''}
+                      </span>
+                    )}
                     {n.meta?.orderNumber && <span>Order: {n.meta.orderNumber}</span>}
                     <span>{timeAgo(n.createdAt)}</span>
+                    {n.type === 'delivery' && n.meta?.orderNumber && (
+                      <Link
+                        href="/vendor/orders"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        <MapPin size={11} /> Track Delivery
+                      </Link>
+                    )}
                   </div>
                 </div>
                 <button
