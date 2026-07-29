@@ -178,6 +178,36 @@ const register = asyncHandler(async (req, res) => {
     }
   }
 
+  // Every admin sees every new signup platform-wide, same as Admin Customers/Vendors/Delivery
+  // Partners already list every account regardless of which admin is looking. Skipped for a
+  // brand-new admin's own registration — that case already gets its own welcome notification
+  // above, and notifying every OTHER existing admin "an admin registered" isn't something any
+  // of the other event types here do for their own actor either.
+  if (role !== ROLES.ADMIN) {
+    try {
+      const admins = await User.find({ role: ROLES.ADMIN }).select('_id');
+      // A fuller label than ROLE_LABELS' short sidebar-tab wording ("Delivery") — reads oddly
+      // in a sentence ("registered as a new delivery"), so this notification spells out
+      // "Delivery Partner" instead without touching the shared constant other call sites rely on.
+      const roleLabelForAdminMsg = role === ROLES.DELIVERY_PARTNER ? 'Delivery Partner' : ROLE_LABELS[role] || 'Customer';
+      await Promise.all(
+        admins.map((admin) =>
+          Notification.create({
+            user: admin._id,
+            title: `${roleLabelForAdminMsg} registered`,
+            message: `${name} registered as a new ${roleLabelForAdminMsg.toLowerCase()}.`,
+            type: 'system',
+            channels: ['in_app'],
+            relatedEntity: { type: 'User', id: user._id },
+            meta: { registeredName: name, registeredRole: role },
+          })
+        )
+      );
+    } catch (err) {
+      logger.error(`Admin registration-notification failed for user ${user._id}: ${err.message}`);
+    }
+  }
+
   if (!env.demoMode) await sendVerificationEmail(user);
 
   const roleLabel = ROLE_LABELS[role] || 'Customer';

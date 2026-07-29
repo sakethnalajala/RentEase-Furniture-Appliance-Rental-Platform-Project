@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  PackageSearch, Search, ImageOff, Check, X, User, Phone, MapPin, Building2, Layers, Wrench, Clock, Navigation, IndianRupee,
+  PackageSearch, Search, ImageOff, Check, X, User, Phone, MapPin, Building2, Layers, Wrench, Clock, Navigation, IndianRupee, ShieldCheck, CalendarClock, CreditCard,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
@@ -16,7 +16,7 @@ import {
   useAcceptDeliveryRequestMutation,
   useRejectDeliveryRequestMutation,
 } from '@/store/deliveryApi';
-import { formatAddress, formatDateTime, money } from '@/lib/deliveryHelpers';
+import { formatAddress, formatDate, formatDateTime, money } from '@/lib/deliveryHelpers';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 // How long an "Accepted"/"Rejected" confirmation pill stays visible before the card exits —
@@ -131,6 +131,13 @@ function RequestCard({ item, decision, acting, onAccept, onReject }) {
           <InfoItem icon={Layers} label="Quantity" value={item.quantity} />
           <InfoItem icon={Clock} label="Requested plan" value={item.rentalPlan?.label || `${item.rentalPlan?.durationMonths} months`} />
           <InfoItem icon={Building2} label="Brand" value={item.product?.brand} />
+          <InfoItem
+            icon={CreditCard}
+            label="Payment status"
+            value={item.order?.paymentStatus ? item.order.paymentStatus.charAt(0).toUpperCase() + item.order.paymentStatus.slice(1) : '—'}
+          />
+          <InfoItem icon={ShieldCheck} label="Delivery OTP" value={item.deliveryOtp} />
+          <InfoItem icon={CalendarClock} label="Estimated delivery" value={item.estimatedDeliveryDate ? formatDate(item.estimatedDeliveryDate) : '—'} />
         </div>
       </Card>
     </motion.div>

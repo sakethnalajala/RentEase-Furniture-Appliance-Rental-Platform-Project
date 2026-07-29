@@ -12,9 +12,12 @@ const RentalPlan = require('../models/RentalPlan');
 const InventoryItem = require('../models/InventoryItem');
 const Cart = require('../models/Cart');
 const Vendor = require('../models/Vendor');
+const DeliveryPartner = require('../models/DeliveryPartner');
+const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { ORDER_ITEM_STATUS, ORDER_STATUS, PAYMENT_STATUS, NON_CANCELLABLE_STATUSES } = require('../constants/orderStatus');
-const { INVENTORY_STATUS } = require('../constants/inventoryStatus');
+const { INVENTORY_STATUS, VENDOR_STATUS } = require('../constants/inventoryStatus');
+const { ROLES } = require('../constants/roles');
 
 // $match (unlike .find()) does not auto-cast string ids to ObjectId, so any aggregation/filter
 // built from req.query needs this explicitly. OrderItem has no city field of its own (the Order
@@ -38,7 +41,13 @@ const ORDER_ITEM_POPULATE = [
   { path: 'product', select: 'name images subCategory brand city monthlyRentalPrice securityDeposit deliveryCharge installationRequired estimatedDeliveryDays', populate: { path: 'city', select: 'name state' } },
   { path: 'rentalPlan', select: 'durationMonths label discountPercent' },
   { path: 'vendor', select: 'businessName' },
-  { path: 'deliveryPartner', populate: { path: 'user', select: 'name phone' } },
+  {
+    path: 'deliveryPartner',
+    populate: [
+      { path: 'user', select: 'name email phone avatar' },
+      { path: 'assignedCity', select: 'name state' },
+    ],
+  },
 ];
 
 // A demo-but-realistic checkout: every payment method "succeeds" immediately (no real gateway
@@ -134,6 +143,7 @@ const checkout = asyncHandler(async (req, res) => {
       discountPercent: plan.discountPercent || 0,
       installationRequired: product.installationRequired,
       deliveryOtpHash: hashCode(plainOtp),
+      deliveryOtp: plainOtp,
       status: ORDER_ITEM_STATUS.PENDING,
       statusHistory: [{ status: ORDER_ITEM_STATUS.PENDING, note: 'Order placed and paid.' }],
     });
@@ -196,13 +206,59 @@ const checkout = asyncHandler(async (req, res) => {
       await Notification.create({
         user: vendor.user,
         title: 'New rental order received',
-        message: `Order ${orderNumber} was just placed and paid — review it in Orders.`,
+        message: `New order received from ${req.user.name}.\nOrder ID: ${orderNumber}`,
         type: 'order',
         relatedEntity: { type: 'Order', id: order._id },
-        meta: { orderNumber },
+        meta: { orderNumber, customerName: req.user.name },
       });
     })
   );
+
+  // Admin visibility — every admin account sees every new order/payment platform-wide, same as
+  // the existing Admin Orders/Payments pages already aggregate across all vendors/customers.
+  const admins = await User.find({ role: ROLES.ADMIN }).select('_id');
+  await Promise.all(
+    admins.flatMap((admin) => [
+      Notification.create({
+        user: admin._id,
+        title: 'New Order',
+        message: `${req.user.name} placed a new order.\nOrder ID: ${orderNumber}`,
+        type: 'order',
+        relatedEntity: { type: 'Order', id: order._id },
+        meta: { orderNumber, customerName: req.user.name },
+      }),
+      initialPaymentStatus === PAYMENT_STATUS.PAID
+        ? Notification.create({
+            user: admin._id,
+            title: 'Payment Received',
+            message: `Payment of ₹${grandTotalDue.toLocaleString('en-IN')} received for order ${orderNumber}.`,
+            type: 'payment',
+            relatedEntity: { type: 'Order', id: order._id },
+            meta: { orderNumber, amount: grandTotalDue },
+          })
+        : null,
+    ].filter(Boolean))
+  );
+
+  // Every item just went straight to an open delivery request the moment it was created above
+  // (see delivery.controller.js's findOpenRequestsInCity — pending items in this city are
+  // already visible there) — let every approved delivery partner assigned to this city know
+  // right away rather than leaving them to discover it only by refreshing Requests.
+  if (orderItemDocs.length) {
+    const cityPartners = await DeliveryPartner.find({ assignedCity: cityId, status: VENDOR_STATUS.APPROVED }).select('user');
+    await Promise.all(
+      cityPartners.map((partner) =>
+        Notification.create({
+          user: partner.user,
+          title: 'New delivery request available',
+          message: 'New delivery request available.',
+          type: 'delivery',
+          relatedEntity: { type: 'Order', id: order._id },
+          meta: { orderNumber },
+        })
+      )
+    );
+  }
 
   // A full set of distinct notifications per item — not one consolidated message — so the
   // customer's Notifications portal shows the same granular trail a real marketplace would:

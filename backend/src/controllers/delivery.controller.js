@@ -8,8 +8,10 @@ const Product = require('../models/Product');
 const InventoryItem = require('../models/InventoryItem');
 const RentalPlan = require('../models/RentalPlan');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { ORDER_ITEM_STATUS } = require('../constants/orderStatus');
 const { INVENTORY_STATUS } = require('../constants/inventoryStatus');
+const { ROLES } = require('../constants/roles');
 const { buildFileUrl } = require('../utils/fileUrl');
 const { generateOpenDeliveryRequests } = require('../services/demoOrderService');
 const { DELIVERY_REVIEWS } = require('../data/demoDeliveryData');
@@ -32,24 +34,34 @@ function estimateDistanceKm(itemId) {
 }
 
 const ITEM_POPULATE = [
-  { path: 'product', select: 'name images subCategory brand monthlyRentalPrice deliveryCharge installationRequired' },
+  { path: 'product', select: 'name images subCategory brand monthlyRentalPrice deliveryCharge installationRequired estimatedDeliveryDays' },
   { path: 'rentalPlan', select: 'durationMonths label' },
   { path: 'vendor', select: 'businessName businessAddress warehouseLocation' },
   {
     path: 'order',
-    select: 'orderNumber customer deliveryAddress placedAt city',
+    select: 'orderNumber customer deliveryAddress placedAt city paymentStatus',
     populate: { path: 'customer', select: 'name email phone avatar' },
   },
 ];
 
-// Attaches the two demo-computed fields (see above) to a populated OrderItem for API
-// responses — doesn't touch the stored document.
+// A request is "open" (unassigned, visible to every delivery partner in the item's city) from
+// the moment payment succeeds — a vendor confirming the item is a separate, parallel action
+// that doesn't gate delivery-partner visibility, per product direction that the request must
+// appear immediately after checkout rather than waiting on a manual vendor step.
+const OPEN_REQUEST_STATUSES = [ORDER_ITEM_STATUS.PENDING, ORDER_ITEM_STATUS.CONFIRMED];
+
+// Attaches the two demo-computed fields (see above), plus an estimated delivery date derived
+// from the product's own estimatedDeliveryDays counted off the order's placement time, to a
+// populated OrderItem for API responses — doesn't touch the stored document.
 function withDemoFields(item) {
   const obj = item.toObject ? item.toObject() : item;
+  const placedAt = obj.order?.placedAt || obj.createdAt;
+  const estimatedDeliveryDays = obj.product?.estimatedDeliveryDays || 3;
   return {
     ...obj,
     distanceKm: estimateDistanceKm(obj._id),
     estimatedDeliveryFee: obj.deliveryFee > 0 ? obj.deliveryFee : computeDeliveryFee(obj),
+    estimatedDeliveryDate: placedAt ? new Date(new Date(placedAt).getTime() + estimatedDeliveryDays * 24 * 60 * 60 * 1000) : null,
   };
 }
 
@@ -115,7 +127,7 @@ const TOPUP_TARGET = 25;
 
 async function findOpenRequestsInCity(partner) {
   const items = await OrderItem.find({
-    status: ORDER_ITEM_STATUS.CONFIRMED,
+    status: { $in: OPEN_REQUEST_STATUSES },
     deliveryPartner: null,
     rejectedByDeliveryPartners: { $ne: partner._id },
   })
@@ -147,25 +159,36 @@ const listRequests = asyncHandler(async (req, res) => {
 
 const acceptRequest = asyncHandler(async (req, res) => {
   const partner = await requirePartner(req);
-  const item = await OrderItem.findOne({ _id: req.params.itemId, status: ORDER_ITEM_STATUS.CONFIRMED, deliveryPartner: null });
+
+  // Atomic find-and-update, not find-then-save: two delivery partners racing to accept the same
+  // request could both pass a plain findOne's `deliveryPartner: null` check before either one's
+  // save() actually lands, assigning the order to whichever save wins last while both partners'
+  // UIs report success. Matching AND writing `deliveryPartner: null` in one atomic operation
+  // means only the first request that actually reaches Mongo can win the compare-and-swap —
+  // every later one for the same item gets `null` back here and a clean "no longer available"
+  // error, never a silent double-assignment. Once this has landed, the item is uniquely this
+  // partner's, so the follow-up plain save() below (fee + history) needs no further guarding.
+  const item = await OrderItem.findOneAndUpdate(
+    { _id: req.params.itemId, status: { $in: OPEN_REQUEST_STATUSES }, deliveryPartner: null },
+    { $set: { deliveryPartner: partner._id, deliveryAssignedAt: new Date(), status: ORDER_ITEM_STATUS.PREPARING } },
+    { new: true }
+  );
   if (!item) throw ApiError.notFound('This delivery request is no longer available.');
 
-  item.deliveryPartner = partner._id;
-  item.status = ORDER_ITEM_STATUS.PREPARING;
   item.deliveryFee = computeDeliveryFee(item);
   item.statusHistory.push({ status: ORDER_ITEM_STATUS.PREPARING, note: 'Accepted by delivery partner.' });
   await item.save();
 
   const order = await Order.findById(item.order);
+  const product = await Product.findById(item.product).select('name');
   if (order) {
-    const product = await Product.findById(item.product).select('name');
     await Notification.create({
       user: order.customer,
       title: 'Delivery Partner Assigned',
-      message: `A delivery partner has been assigned to bring you ${product?.name || 'your item'}.\nOrder ID: ${order.orderNumber}`,
+      message: `Your order has been accepted by ${req.user.name}.\nOrder ID: ${order.orderNumber}`,
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
-      meta: { orderNumber: order.orderNumber, productName: product?.name, status: 'Assigned' },
+      meta: { orderNumber: order.orderNumber, productName: product?.name, status: 'Assigned', deliveryPartnerName: req.user.name },
     });
   }
   const vendorPop = await OrderItem.findById(item._id).populate('vendor', 'user');
@@ -173,11 +196,25 @@ const acceptRequest = asyncHandler(async (req, res) => {
     await Notification.create({
       user: vendorPop.vendor.user,
       title: 'Delivery partner assigned',
-      message: `A delivery partner accepted the delivery for order item ${item._id}.`,
+      message: `${req.user.name} accepted delivery for Order #${order?.orderNumber || item._id}.`,
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
+      meta: { orderNumber: order?.orderNumber, deliveryPartnerName: req.user.name },
     });
   }
+  const admins = await User.find({ role: ROLES.ADMIN }).select('_id');
+  await Promise.all(
+    admins.map((admin) =>
+      Notification.create({
+        user: admin._id,
+        title: 'Delivery Assigned',
+        message: `${req.user.name} was assigned to order ${order?.orderNumber || item._id}.`,
+        type: 'delivery',
+        relatedEntity: { type: 'OrderItem', id: item._id },
+        meta: { orderNumber: order?.orderNumber, deliveryPartnerName: req.user.name },
+      })
+    )
+  );
 
   const populated = await OrderItem.findById(item._id).populate(ITEM_POPULATE);
   new ApiResponse(200, populated, 'Delivery accepted.').send(res);
@@ -185,7 +222,7 @@ const acceptRequest = asyncHandler(async (req, res) => {
 
 const rejectRequest = asyncHandler(async (req, res) => {
   const partner = await requirePartner(req);
-  const item = await OrderItem.findOne({ _id: req.params.itemId, status: ORDER_ITEM_STATUS.CONFIRMED, deliveryPartner: null });
+  const item = await OrderItem.findOne({ _id: req.params.itemId, status: { $in: OPEN_REQUEST_STATUSES }, deliveryPartner: null });
   if (!item) throw ApiError.notFound('This delivery request is no longer available.');
 
   if (!item.rejectedByDeliveryPartners.some((id) => String(id) === String(partner._id))) {

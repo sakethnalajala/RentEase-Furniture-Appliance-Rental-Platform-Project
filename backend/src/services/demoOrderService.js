@@ -113,6 +113,7 @@ async function generateOpenDeliveryRequests({ cityId, count }) {
       discountPercent: plan.discountPercent || 0,
       installationRequired: product.installationRequired,
       deliveryOtpHash: hashCode(plainOtp),
+      deliveryOtp: plainOtp,
       status: ORDER_ITEM_STATUS.CONFIRMED,
       statusHistory: [
         { status: ORDER_ITEM_STATUS.PENDING, changedAt: placedAt, note: 'Order placed and paid.' },

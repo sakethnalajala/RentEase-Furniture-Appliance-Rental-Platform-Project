@@ -9,9 +9,14 @@ const orderItemSchema = new mongoose.Schema(
     inventoryItem: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
     rentalPlan: { type: mongoose.Schema.Types.ObjectId, ref: 'RentalPlan', required: true },
 
-    // Delivery-partner assignment (Phase 4 workflow: vendor confirms -> open request -> a
-    // delivery partner in the item's city accepts -> picks up -> delivers with OTP).
+    // Delivery-partner assignment (open request the moment an item is paid for -> a delivery
+    // partner in the item's city accepts -> picks up -> delivers with OTP; the vendor's own
+    // confirm/reject action on the item is independent of this and can still happen either
+    // before or after a delivery partner grabs the request).
     deliveryPartner: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner', default: null },
+    // When that assignment happened — distinct from the item's own updatedAt, which keeps
+    // moving through pickup/delivery and would otherwise overwrite "when was this accepted."
+    deliveryAssignedAt: { type: Date, default: null },
     // Tracked per-partner so a request one partner declines still surfaces to every other
     // partner in the city, instead of disappearing for everyone.
     rejectedByDeliveryPartners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryPartner' }],
@@ -37,6 +42,11 @@ const orderItemSchema = new mongoose.Schema(
     deliveryDate: { type: Date, default: null },
     deliverySlot: { type: String, default: '' },
     deliveryOtpHash: { type: String, select: false, default: null },
+    // Plaintext alongside the hash above — the hash exists for markDelivered's original
+    // compare-don't-store design, but the assigned delivery partner legitimately needs to see
+    // this value up front (the Delivery Request card shows it) rather than only learning it
+    // verbally from the customer at the door, per this app's demo delivery workflow.
+    deliveryOtp: { type: String, default: null },
     installationRequired: { type: Boolean, default: false },
     installationScheduledAt: { type: Date, default: null },
 

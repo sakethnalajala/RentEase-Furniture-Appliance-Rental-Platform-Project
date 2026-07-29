@@ -3,18 +3,22 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
-import { Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Receipt, CalendarClock, Calendar, Truck, PackageCheck, Wallet } from 'lucide-react';
+import {
+  Search, ShoppingBag, ImageOff, Check, X, Sparkles, MapPin, Phone, Mail, Receipt, CalendarClock, Calendar, Truck,
+  PackageCheck, Wallet, Star, Bike, Car, User as UserIcon, Eye,
+} from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useGetMyVendorProfileQuery, useListMyProductsQuery } from '@/store/vendorApi';
 import { useListVendorOrderItemsQuery, useUpdateVendorItemStatusMutation } from '@/store/orderApi';
 import { buildVendorOrders, ORDER_STATUSES } from '@/lib/mockVendorData';
-import { formatDate, money } from '@/lib/deliveryHelpers';
+import { formatDate, formatDateTime, money, initials } from '@/lib/deliveryHelpers';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...ORDER_STATUSES.map((s) => ({ value: s, label: s }))];
@@ -50,15 +54,78 @@ const REAL_STATUS_LABELS = {
   cancelled: 'Cancelled',
 };
 
+const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
+
+// The full profile of whichever delivery partner accepted this specific order item — shown via
+// "View Delivery Partner" once one has, rather than the vendor's general fleet roster (Vendor →
+// Delivery Partners), since that page aggregates performance across every order, not this one.
+function DeliveryPartnerModal({ open, onClose, order }) {
+  const partner = order?.deliveryPartner;
+  if (!partner) return null;
+  const VehicleIcon = VEHICLE_ICONS[partner.vehicleType] || Truck;
+  const avatarSrc = partner.user?.avatar || partner.profilePhoto;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Delivery Partner">
+      <div className="flex items-center gap-3">
+        {avatarSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarSrc} alt={partner.user?.name} className="h-14 w-14 shrink-0 rounded-full object-cover shadow-premium" />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-lg font-bold text-white shadow-premium">
+            {initials(partner.user?.name)}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{partner.user?.name}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant={partner.isOnline ? 'success' : 'neutral'}>{partner.isOnline ? 'Online' : 'Offline'}</Badge>
+            <Badge variant={partner.isAvailable ? 'brand' : 'accent'}>{partner.isAvailable ? 'Available' : 'Busy'}</Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-4 text-sm dark:border-white/10">
+        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <Phone size={13} className="text-brand-500" /> {partner.user?.phone || '—'}
+        </div>
+        <div className="flex items-center gap-1.5 truncate text-slate-600 dark:text-slate-300">
+          <Mail size={13} className="text-brand-500" /> <span className="truncate">{partner.user?.email || '—'}</span>
+        </div>
+        <div className="flex items-center gap-1.5 capitalize text-slate-600 dark:text-slate-300">
+          <VehicleIcon size={13} className="text-brand-500" /> {partner.vehicleType} · {partner.vehicleNumber}
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <MapPin size={13} className="text-brand-500" /> {partner.assignedCity?.name || '—'}
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <Star size={13} className="fill-amber-400 text-amber-400" /> {partner.averageRating ? partner.averageRating.toFixed(1) : 'No ratings yet'}
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <UserIcon size={13} className="text-brand-500" /> <span className="capitalize">{partner.status || 'approved'}</span>
+        </div>
+        <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <CalendarClock size={13} className="text-brand-500" />
+          Assigned {order.deliveryAssignedAt ? formatDateTime(order.deliveryAssignedAt) : '—'}
+        </div>
+        <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          <Truck size={13} className="text-brand-500" /> Delivery status: {deliveryStatus(order)}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function RealOrderCard({ order }) {
   const [updateStatus, { isLoading }] = useUpdateVendorItemStatusMutation();
+  const [showPartner, setShowPartner] = useState(false);
   const product = order.product;
   const customer = order.order?.customer;
 
   const handle = async (action) => {
     try {
       await updateStatus({ itemId: order._id, action }).unwrap();
-      toast.success(action === 'confirm' ? 'Order confirmed — now visible to delivery partners.' : 'Order rejected.');
+      toast.success(action === 'confirm' ? 'Order confirmed.' : 'Order rejected.');
     } catch (err) {
       toast.error(err?.data?.message || 'Could not update this order.');
     }
@@ -147,7 +214,23 @@ function RealOrderCard({ order }) {
         <Badge variant={order.deliveredAt ? 'success' : 'neutral'}>
           <Truck size={10} /> {deliveryStatus(order)}
         </Badge>
+        {order.deliveryPartner && (
+          <>
+            <Badge variant="brand">
+              <UserIcon size={10} /> {order.deliveryPartner.user?.name || 'Delivery partner assigned'}
+            </Badge>
+            <button
+              type="button"
+              onClick={() => setShowPartner(true)}
+              className="focus-ring flex items-center gap-1 rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-900/10 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+            >
+              <Eye size={11} /> View Delivery Partner
+            </button>
+          </>
+        )}
       </div>
+
+      <DeliveryPartnerModal open={showPartner} onClose={() => setShowPartner(false)} order={order} />
     </Card>
   );
 }
