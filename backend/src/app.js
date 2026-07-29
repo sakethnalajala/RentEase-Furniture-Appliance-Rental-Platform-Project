@@ -16,7 +16,13 @@ const app = express();
 // throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request in production.
 app.set('trust proxy', 1);
 
-app.use(helmet());
+// Helmet's default Cross-Origin-Resource-Policy is `same-origin`, which Chromium enforces
+// independently of, and in addition to, CORS: even a response carrying a fully correct
+// Access-Control-Allow-Origin header still gets blocked client-side if this header says
+// same-origin, since this API is deliberately called cross-origin (Vercel frontend -> Render
+// backend). Confirmed present on every response from this server's actual default config
+// before this fix — a real, separate bug from anything CORS-allowlist-shaped.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // Static single-string `origin` matching is exact-string-or-nothing — a trailing slash or
 // scheme mismatch on either side silently drops the Access-Control-Allow-Origin header with
@@ -26,7 +32,15 @@ app.use(helmet());
 // in a given environment. Requests with no Origin header at all (curl, server-to-server, same-
 // origin) are never subject to CORS and are always allowed through.
 const stripTrailingSlash = (url) => (url || '').replace(/\/+$/, '');
-const ALLOWED_ORIGINS = [stripTrailingSlash(env.clientUrl), 'http://localhost:3000'].filter(Boolean);
+const ALLOWED_ORIGINS = [
+  stripTrailingSlash(env.clientUrl),
+  'http://localhost:3000',
+  // Hardcoded alongside env.clientUrl (not instead of it) — this app's actual production
+  // frontend origin, kept here so a misconfigured or missing CLIENT_URL on whichever host runs
+  // this process can never be the difference between CORS working and not for the one origin
+  // that has to work.
+  'https://rentease-furniture-rental-ecru.vercel.app',
+].filter(Boolean);
 
 app.use(
   cors({
