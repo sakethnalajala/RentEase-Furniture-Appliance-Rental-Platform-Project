@@ -17,7 +17,28 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors({ origin: env.clientUrl, credentials: true }));
+
+// Static single-string `origin` matching is exact-string-or-nothing — a trailing slash or
+// scheme mismatch on either side silently drops the Access-Control-Allow-Origin header with
+// no error anywhere, which looks identical to a CORS misconfiguration from the browser's side.
+// Normalizing (strip trailing slash) and matching against an explicit allowlist avoids that
+// whole class of bug, and separately allows local dev regardless of what CLIENT_URL is set to
+// in a given environment. Requests with no Origin header at all (curl, server-to-server, same-
+// origin) are never subject to CORS and are always allowed through.
+const stripTrailingSlash = (url) => (url || '').replace(/\/+$/, '');
+const ALLOWED_ORIGINS = [stripTrailingSlash(env.clientUrl), 'http://localhost:3000'].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // `callback(null, false)`, not an Error — an unrecognized origin is a routine access-
+      // control decision (just omit the CORS header so the browser blocks it client-side), not
+      // a server error; erroring here would incorrectly surface as a 500 through errorHandler.
+      callback(null, !origin || ALLOWED_ORIGINS.includes(stripTrailingSlash(origin)));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
