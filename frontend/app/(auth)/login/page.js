@@ -85,8 +85,20 @@ function LoginForm({ onAuthenticated }) {
       // else: mandatory 2FA (Demo Admin) — Redux's requires2FA/requires2FASetup already flipped
       // this page's own `view` to the matching form (see LoginPage below); no fake "logged in"
       // toast until that actually completes.
-    } catch {
-      toast.error('Demo login failed. Please try again.');
+    } catch (err) {
+      // A generic "failed, try again" toast was indistinguishable between "wrong credentials"
+      // and "the request never reached the server at all" (network/CORS failure) — exactly the
+      // ambiguity that made a real backend outage look identical to a demo-data problem.
+      // RTK Query's rejected shape carries enough to tell these apart: `err.status === 'FETCH_ERROR'`
+      // means the browser never got a response (network/CORS/DNS — see err.error for the raw
+      // reason); any other `status` is a real HTTP response from the API with its own message.
+      // eslint-disable-next-line no-console
+      console.error('Demo login failed:', err);
+      if (err?.status === 'FETCH_ERROR') {
+        toast.error(`Could not reach the server (${err.error || 'network error'}). Check the browser console/Network tab for details.`);
+      } else {
+        toast.error(err?.data?.message || 'Demo login failed. Please try again.');
+      }
     }
   };
 

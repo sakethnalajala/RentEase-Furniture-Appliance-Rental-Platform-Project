@@ -42,17 +42,31 @@ const ALLOWED_ORIGINS = [
   'https://rentease-furniture-rental-ecru.vercel.app',
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      // `callback(null, false)`, not an Error — an unrecognized origin is a routine access-
-      // control decision (just omit the CORS header so the browser blocks it client-side), not
-      // a server error; erroring here would incorrectly surface as a 500 through errorHandler.
-      callback(null, !origin || ALLOWED_ORIGINS.includes(stripTrailingSlash(origin)));
-    },
-    credentials: true,
-  })
-);
+// Explicit methods/allowedHeaders, not left to the `cors` package's defaults — this app's own
+// login/checkout/upload flows use PATCH and DELETE alongside GET/POST/PUT, and send both
+// Content-Type and Authorization, so every one of those needs to be in the preflight response's
+// Access-Control-Allow-Methods/-Headers or the browser cancels the real request after a
+// "successful" (2xx) but incomplete preflight — indistinguishable from a hard network failure
+// from the frontend's side, and invisible in server logs either way, since the `cors` middleware
+// answers OPTIONS requests itself before they ever reach the logging middleware below.
+const corsOptions = {
+  origin(origin, callback) {
+    // `callback(null, false)`, not an Error — an unrecognized origin is a routine access-
+    // control decision (just omit the CORS header so the browser blocks it client-side), not
+    // a server error; erroring here would incorrectly surface as a 500 through errorHandler.
+    callback(null, !origin || ALLOWED_ORIGINS.includes(stripTrailingSlash(origin)));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-cleanup-secret', 'x-seed-secret'],
+};
+
+app.use(cors(corsOptions));
+// Belt-and-suspenders: an explicit catch-all OPTIONS handler guarantees every route answers
+// preflight the same way, rather than relying only on cors() being mounted early enough to
+// intercept every path (true today, but a route-level app.options() elsewhere could otherwise
+// shadow it in the future).
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
