@@ -129,7 +129,7 @@ async function buildPartnerPerformance(vendorId, partnerId) {
   const items = await OrderItem.find({ vendor: vendorId, deliveryPartner: partnerId })
     .select('status deliveryFee pickedUpAt deliveredAt deliveryRating deliveryReviewComment deliveryReviewDate product order createdAt')
     .populate('product', 'name images')
-    .populate({ path: 'order', select: 'customer orderNumber placedAt', populate: { path: 'customer', select: 'name' } })
+    .populate({ path: 'order', select: 'customer orderNumber placedAt deliveryAddress', populate: { path: 'customer', select: 'name' } })
     .sort({ createdAt: -1 });
 
   const rejectedRequests = await OrderItem.countDocuments({ vendor: vendorId, rejectedByDeliveryPartners: partnerId });
@@ -171,8 +171,30 @@ async function buildPartnerPerformance(vendorId, partnerId) {
     review: i.deliveryReviewComment,
   }));
 
+  // "Last delivered X" — the single most-recently-*delivered* item, not just the most recently
+  // *created* one (`items` above is sorted by createdAt, which can put a still-in-progress
+  // order ahead of an older-but-already-completed one). Auto-refreshes on its own every time a
+  // new delivery completes, since it's derived fresh from OrderItem on every read rather than
+  // stored anywhere — there is no separate "profile" document to remember to update.
+  const mostRecentDelivery = [...completed].sort((a, b) => new Date(b.deliveredAt) - new Date(a.deliveredAt))[0] || null;
+  const lastDelivery = mostRecentDelivery
+    ? {
+        product: mostRecentDelivery.product?.name || null,
+        productImage: mostRecentDelivery.product?.images?.[0] || null,
+        customer: mostRecentDelivery.order?.customer?.name || null,
+        city: mostRecentDelivery.order?.deliveryAddress?.city || null,
+        date: mostRecentDelivery.deliveredAt,
+        orderNumber: mostRecentDelivery.order?.orderNumber || null,
+      }
+    : null;
+
   return {
     productsDelivered: completed.length,
+    // Same number as productsDelivered, named to match "delivery history count" as its own
+    // concept — every completed delivery becomes exactly one Delivery History entry for this
+    // vendor+partner pair, so the two are always equal by construction, not coincidence.
+    deliveryHistoryCount: completed.length,
+    lastDelivery,
     successRate,
     customerRating,
     acceptedRequests,

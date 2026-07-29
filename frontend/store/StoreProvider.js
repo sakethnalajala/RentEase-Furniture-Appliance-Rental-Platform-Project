@@ -1,12 +1,63 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { Provider, useDispatch, useStore } from 'react-redux';
+import { Provider, useDispatch, useStore, useSelector } from 'react-redux';
 import { makeStore } from './store';
+import { api } from './api';
 import { authApi } from './authApi';
 import { setAccessToken, setCredentials, setUnauthenticated } from './authSlice';
 import { clearRoleCookie } from '@/lib/cookies';
 import { hasActiveSessionFlag, clearActiveSessionFlag } from '@/lib/activeSession';
+import { getSocket, connectSocket, disconnectSocket } from '@/lib/socket';
+
+// Tags any "something changed on the backend" push could plausibly affect — deliberately broad
+// rather than trying to map each notification `reason` to an exact tag set: RTK Query only
+// actually refetches a tag if some mounted component is subscribed to it, so invalidating a tag
+// nobody's watching right now is a no-op, not wasted work. This is what turns a server-side
+// event into an instant, no-refresh UI update on every open tab/portal for the affected users.
+const REALTIME_TAGS = [
+  'Notifications',
+  'MyOrders',
+  'VendorOrders',
+  'DeliveryRequests',
+  'DeliveryAssigned',
+  'DeliveryHistory',
+  'VendorDeliveryPartners',
+];
+
+// Keeps one live Socket.IO connection in sync with the current session: connects (or
+// reconnects with the fresh token) whenever the in-memory access token changes, disconnects on
+// logout, and turns every `notification` push from the server into an RTK Query cache
+// invalidation — the same mechanism a manual refetch or another tab's mutation would trigger,
+// just driven by the server instead of a click. On a host that can't hold a persistent
+// WebSocket open (this app's interim Vercel serverless backend), the socket simply never
+// finishes connecting and every portal quietly falls back to its existing polling interval —
+// nothing here assumes the connection succeeds.
+function RealtimeSync() {
+  const dispatch = useDispatch();
+  const status = useSelector((state) => state.auth.status);
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const listenersAttached = useRef(false);
+
+  useEffect(() => {
+    if (listenersAttached.current) return;
+    listenersAttached.current = true;
+    const socket = getSocket();
+    socket.on('notification', () => {
+      dispatch(api.util.invalidateTags(REALTIME_TAGS));
+    });
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && accessToken) {
+      connectSocket(accessToken);
+    } else {
+      disconnectSocket();
+    }
+  }, [status, accessToken]);
+
+  return null;
+}
 
 // Guards against running this effect's logic more than once per real page load. Belt-and-
 // suspenders alongside the sessionStorage check below: on Vercel's production hosting, the
@@ -74,6 +125,7 @@ export default function StoreProvider({ children }) {
 
   return (
     <Provider store={storeRef.current}>
+      <RealtimeSync />
       <SessionBootstrapper>{children}</SessionBootstrapper>
     </Provider>
   );

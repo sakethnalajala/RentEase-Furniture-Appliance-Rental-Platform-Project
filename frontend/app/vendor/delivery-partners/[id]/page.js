@@ -4,14 +4,15 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Truck, Bike, Car, Star, Phone, Mail, MapPin, ArrowLeft, Package, CheckCircle2, XCircle,
-  Hourglass, Wallet, TrendingUp, Quote, ImageOff, CalendarClock, PackageSearch,
+  Hourglass, Wallet, TrendingUp, Quote, ImageOff, CalendarClock, PackageSearch, PackageCheck, History,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { useListVendorDeliveryPartnersQuery } from '@/store/vendorApi';
 import { CountUpNumber } from '@/components/vendor/AnalyticsCharts';
-import { initials, statusLabel, formatDate } from '@/lib/deliveryHelpers';
+import { initials, statusLabel, formatDate, formatDateTime } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
 
@@ -81,7 +82,7 @@ export default function VendorDeliveryPartnerDetailPage() {
   const { id } = useParams();
   // Reuses the already-fetched fleet list (same RTK Query cache key as the list page) —
   // no separate by-id endpoint exists, so we find-by-id client-side rather than add a fetch.
-  const { data, isLoading } = useListVendorDeliveryPartnersQuery();
+  const { data, isLoading } = useListVendorDeliveryPartnersQuery(undefined, { pollingInterval: LIVE_POLL_MS });
   const partners = data?.data || [];
   const partner = partners.find((p) => p._id === id);
 
@@ -192,8 +193,39 @@ export default function VendorDeliveryPartnerDetailPage() {
           <StatTile icon={XCircle} label="Rejected requests" value={perf.rejectedRequests || 0} accent="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
           <StatTile icon={Hourglass} label="Pending deliveries" value={perf.pendingDeliveries || 0} accent="bg-sky-500/10 text-sky-600 dark:text-sky-400" />
           <StatTile icon={Truck} label="Active deliveries" value={perf.activeDeliveries || 0} accent="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
+          <StatTile icon={History} label="Delivery history" value={perf.deliveryHistoryCount || 0} accent="bg-slate-500/10 text-slate-600 dark:text-slate-300" />
         </div>
       </div>
+
+      {/* Last delivery — the single most-recent completed delivery for this vendor+partner
+          pair, refreshed live (socket push, falling back to polling) the instant a new one
+          lands, so this block never needs a manual reload to reflect the latest activity. */}
+      {perf.lastDelivery && (
+        <Card variant="glass" className="flex flex-wrap items-center gap-4 p-4">
+          {perf.lastDelivery.productImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={perf.lastDelivery.productImage} alt={perf.lastDelivery.product} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/5">
+              <PackageCheck size={18} />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+              <PackageCheck size={12} /> Last delivery
+            </p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{perf.lastDelivery.product}</p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              {perf.lastDelivery.customer}
+              {perf.lastDelivery.city ? ` · ${perf.lastDelivery.city}` : ''}
+              {perf.lastDelivery.orderNumber ? ` · Order ${perf.lastDelivery.orderNumber}` : ''}
+            </p>
+          </div>
+          {perf.lastDelivery.date && (
+            <p className="shrink-0 text-xs text-slate-400">{formatDateTime(perf.lastDelivery.date)}</p>
+          )}
+        </Card>
+      )}
 
       {/* Reviews */}
       <div>

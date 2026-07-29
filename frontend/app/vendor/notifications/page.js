@@ -2,12 +2,16 @@
 
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Bell, CheckCheck, Trash2, Package, Wrench, CreditCard, Info, Truck, MapPin } from 'lucide-react';
+import {
+  Bell, CheckCheck, Trash2, Package, Wrench, CreditCard, Info, Truck, MapPin,
+  Phone, Mail, CalendarClock, UserRound, ArrowUpRight, Receipt,
+} from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Skeleton from '@/components/ui/Skeleton';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import { LIVE_POLL_MS } from '@/lib/livePoll';
+import { formatDateTime, initials } from '@/lib/deliveryHelpers';
 import {
   useListNotificationsQuery,
   useGetUnreadNotificationCountQuery,
@@ -32,6 +36,89 @@ function timeAgo(date) {
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
   return `${days} days ago`;
+}
+
+// The full "Delivery Completed Successfully" breakdown — only rendered for the one notification
+// type carrying `meta.deliveryPartnerId` (set exclusively by markDelivered's vendor
+// notification), so every other notification type keeps its plain summary line untouched.
+function DeliveryCompletedDetails({ meta }) {
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-center gap-3">
+        {meta.deliveryPartnerPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={meta.deliveryPartnerPhoto} alt={meta.deliveryPartnerName} className="h-11 w-11 shrink-0 rounded-full object-cover shadow-premium" />
+        ) : (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-bold text-white shadow-premium">
+            {initials(meta.deliveryPartnerName)}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{meta.deliveryPartnerName}</p>
+          <p className="truncate text-[11px] text-slate-400">Partner ID: {meta.deliveryPartnerId}</p>
+        </div>
+        {meta.totalDeliveriesForVendor !== undefined && (
+          <span className="shrink-0 rounded-full bg-brand-500/10 px-2.5 py-1 text-[11px] font-semibold text-brand-700 dark:text-brand-300">
+            {meta.totalDeliveriesForVendor} deliveries for you
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+        {meta.deliveryPartnerPhone && (
+          <span className="flex items-center gap-1.5">
+            <Phone size={12} className="text-brand-500" /> {meta.deliveryPartnerPhone}
+          </span>
+        )}
+        {meta.deliveryPartnerEmail && (
+          <span className="flex items-center gap-1.5 truncate">
+            <Mail size={12} className="shrink-0 text-brand-500" /> <span className="truncate">{meta.deliveryPartnerEmail}</span>
+          </span>
+        )}
+        {meta.vehicleType && (
+          <span className="flex items-center gap-1.5 capitalize">
+            <Truck size={12} className="text-brand-500" /> {meta.vehicleType} · {meta.vehicleNumber}
+          </span>
+        )}
+        {meta.assignedCity && (
+          <span className="flex items-center gap-1.5">
+            <MapPin size={12} className="text-brand-500" /> Assigned city: {meta.assignedCity}
+          </span>
+        )}
+        {meta.productName && (
+          <span className="flex items-center gap-1.5 truncate">
+            <Package size={12} className="shrink-0 text-brand-500" /> <span className="truncate">{meta.productName}</span>
+          </span>
+        )}
+        {meta.orderNumber && (
+          <span className="flex items-center gap-1.5">
+            <Receipt size={12} className="text-brand-500" /> Order {meta.orderNumber}
+          </span>
+        )}
+        {meta.customerName && (
+          <span className="flex items-center gap-1.5">
+            <UserRound size={12} className="text-brand-500" /> {meta.customerName}
+            {meta.customerCity ? ` · ${meta.customerCity}` : ''}
+          </span>
+        )}
+        {meta.deliveredAt && (
+          <span className="flex items-center gap-1.5">
+            <CalendarClock size={12} className="text-brand-500" /> {formatDateTime(meta.deliveredAt)}
+          </span>
+        )}
+      </div>
+
+      {meta.deliveryPartnerId && (
+        <Link
+          href={`/vendor/delivery-partners/${meta.deliveryPartnerId}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+        >
+          View partner profile <ArrowUpRight size={12} />
+        </Link>
+      )}
+    </div>
+  );
 }
 
 export default function VendorNotificationsPage() {
@@ -98,26 +185,34 @@ export default function VendorNotificationsPage() {
                     {n.meta?.status && <OrderStatusBadge status={n.meta.status} />}
                   </div>
                   <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{n.message}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                    {n.meta?.customerName && <span>Customer: {n.meta.customerName}</span>}
-                    {n.meta?.deliveryPartnerName && (
-                      <span className="flex items-center gap-1">
-                        <Truck size={11} /> {n.meta.deliveryPartnerName}
-                        {n.meta.vehicleNumber ? ` · ${n.meta.vehicleNumber}` : ''}
-                      </span>
-                    )}
-                    {n.meta?.orderNumber && <span>Order: {n.meta.orderNumber}</span>}
-                    <span>{timeAgo(n.createdAt)}</span>
-                    {n.type === 'delivery' && n.meta?.orderNumber && (
-                      <Link
-                        href="/vendor/orders"
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 font-medium text-brand-600 hover:underline dark:text-brand-400"
-                      >
-                        <MapPin size={11} /> Track Delivery
-                      </Link>
-                    )}
-                  </div>
+
+                  {n.meta?.deliveryPartnerId ? (
+                    <>
+                      <DeliveryCompletedDetails meta={n.meta} />
+                      <p className="mt-1.5 text-xs text-slate-400">{timeAgo(n.createdAt)}</p>
+                    </>
+                  ) : (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                      {n.meta?.customerName && <span>Customer: {n.meta.customerName}</span>}
+                      {n.meta?.deliveryPartnerName && (
+                        <span className="flex items-center gap-1">
+                          <Truck size={11} /> {n.meta.deliveryPartnerName}
+                          {n.meta.vehicleNumber ? ` · ${n.meta.vehicleNumber}` : ''}
+                        </span>
+                      )}
+                      {n.meta?.orderNumber && <span>Order: {n.meta.orderNumber}</span>}
+                      <span>{timeAgo(n.createdAt)}</span>
+                      {n.type === 'delivery' && n.meta?.orderNumber && (
+                        <Link
+                          href="/vendor/orders"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          <MapPin size={11} /> Track Delivery
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

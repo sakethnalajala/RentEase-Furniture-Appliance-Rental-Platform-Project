@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useSelector } from 'react-redux';
-import { Truck, Bike, Car, Star, Phone, Mail, MapPin, Users, ArrowUpRight } from 'lucide-react';
+import { Truck, Bike, Car, Star, Phone, Mail, MapPin, Users, ArrowUpRight, PackageCheck } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Skeleton from '@/components/ui/Skeleton';
 import { useListVendorDeliveryPartnersQuery } from '@/store/vendorApi';
-import { initials } from '@/lib/deliveryHelpers';
+import { initials, timeAgo } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const VEHICLE_ICONS = { bike: Bike, van: Car, truck: Truck };
 
@@ -93,8 +94,19 @@ function DeliveryPartnerCard({ partner }) {
           </p>
         </div>
 
+        {partner.performance?.lastDelivery && (
+          <p className="mt-3 flex items-center gap-1.5 truncate rounded-lg bg-emerald-500/5 px-2.5 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+            <PackageCheck size={12} className="shrink-0" />
+            <span className="truncate">
+              Last: {partner.performance.lastDelivery.product} for {partner.performance.lastDelivery.customer} · {timeAgo(partner.performance.lastDelivery.date)}
+            </span>
+          </p>
+        )}
+
         <div className="mt-auto flex items-center justify-between border-t border-slate-200/70 pt-3 mt-4 dark:border-white/10">
-          <span className="text-xs text-slate-400">{partner.totalDeliveries || 0} deliveries</span>
+          <span className="text-xs text-slate-400">
+            {partner.performance?.productsDelivered || 0} delivered for you · {partner.totalDeliveries || 0} platform-wide
+          </span>
           <span className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400">
             View profile <ArrowUpRight size={12} />
           </span>
@@ -106,7 +118,7 @@ function DeliveryPartnerCard({ partner }) {
 
 export default function VendorDeliveryPartnersPage() {
   const selectedCity = useSelector((state) => state.city.selectedCity);
-  const { data, isLoading } = useListVendorDeliveryPartnersQuery({ city: selectedCity?.id });
+  const { data, isLoading } = useListVendorDeliveryPartnersQuery({ city: selectedCity?.id }, { pollingInterval: LIVE_POLL_MS });
   const partners = data?.data || [];
 
   return (

@@ -2,13 +2,15 @@ const app = require('./app');
 const env = require('./config/env');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
+const { initRealtime } = require('./realtime');
 
 async function start() {
   try {
     await connectDB();
-    app.listen(env.port, () => {
+    const httpServer = app.listen(env.port, () => {
       logger.success(`RentEase API listening on port ${env.port} [${env.nodeEnv}]`);
     });
+    initRealtime(httpServer);
   } catch (err) {
     logger.error(`Failed to start server: ${err.message}`);
     process.exit(1);

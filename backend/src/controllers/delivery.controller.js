@@ -9,12 +9,14 @@ const InventoryItem = require('../models/InventoryItem');
 const RentalPlan = require('../models/RentalPlan');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const City = require('../models/City');
 const { ORDER_ITEM_STATUS } = require('../constants/orderStatus');
 const { INVENTORY_STATUS } = require('../constants/inventoryStatus');
 const { ROLES } = require('../constants/roles');
 const { buildFileUrl } = require('../utils/fileUrl');
 const { generateOpenDeliveryRequests } = require('../services/demoOrderService');
 const { DELIVERY_REVIEWS } = require('../data/demoDeliveryData');
+const { emitToUser } = require('../utils/realtime');
 
 // A flat demo delivery fee — real platforms price this off distance/weight, but nothing in
 // this app's Product/Order model tracks either, so a fixed per-delivery earning (plus a small
@@ -190,6 +192,7 @@ const acceptRequest = asyncHandler(async (req, res) => {
       relatedEntity: { type: 'OrderItem', id: item._id },
       meta: { orderNumber: order.orderNumber, productName: product?.name, status: 'Assigned', deliveryPartnerName: req.user.name },
     });
+    emitToUser(order.customer, 'notification', { reason: 'delivery-accepted' });
   }
   const vendorPop = await OrderItem.findById(item._id).populate('vendor', 'user');
   if (vendorPop?.vendor?.user) {
@@ -214,20 +217,23 @@ const acceptRequest = asyncHandler(async (req, res) => {
         status: 'Accepted',
       },
     });
+    emitToUser(vendorPop.vendor.user, 'notification', { reason: 'delivery-accepted' });
   }
   const admins = await User.find({ role: ROLES.ADMIN }).select('_id');
   await Promise.all(
-    admins.map((admin) =>
-      Notification.create({
+    admins.map(async (admin) => {
+      await Notification.create({
         user: admin._id,
         title: 'Delivery Assigned',
         message: `${req.user.name} was assigned to order ${order?.orderNumber || item._id}.`,
         type: 'delivery',
         relatedEntity: { type: 'OrderItem', id: item._id },
         meta: { orderNumber: order?.orderNumber, deliveryPartnerName: req.user.name },
-      })
-    )
+      });
+      emitToUser(admin._id, 'notification', { reason: 'delivery-accepted' });
+    })
   );
+  emitToUser(req.user._id, 'notification', { reason: 'delivery-accepted' });
 
   const populated = await OrderItem.findById(item._id).populate(ITEM_POPULATE);
   new ApiResponse(200, populated, 'Delivery accepted.').send(res);
@@ -293,6 +299,7 @@ const rejectAssigned = asyncHandler(async (req, res) => {
       relatedEntity: { type: 'OrderItem', id: item._id },
       meta: { orderNumber: order.orderNumber },
     });
+    emitToUser(order.customer, 'notification', { reason: 'delivery-rejected' });
   }
   const vendorPop = await OrderItem.findById(item._id).populate('vendor', 'user').populate('product', 'name');
   if (vendorPop?.vendor?.user) {
@@ -303,6 +310,7 @@ const rejectAssigned = asyncHandler(async (req, res) => {
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
     });
+    emitToUser(vendorPop.vendor.user, 'notification', { reason: 'delivery-rejected' });
   }
 
   new ApiResponse(200, { itemId: item._id }, 'Delivery rejected.').send(res);
@@ -328,7 +336,10 @@ const markPickedUp = asyncHandler(async (req, res) => {
       relatedEntity: { type: 'OrderItem', id: item._id },
       meta: { orderNumber: order.orderNumber },
     });
+    emitToUser(order.customer, 'notification', { reason: 'out-for-delivery' });
   }
+  const vendorForPickup = await OrderItem.findById(item._id).populate('vendor', 'user');
+  if (vendorForPickup?.vendor?.user) emitToUser(vendorForPickup.vendor.user, 'notification', { reason: 'out-for-delivery' });
 
   const populated = await OrderItem.findById(item._id).populate(ITEM_POPULATE);
   new ApiResponse(200, populated, 'Marked as picked up.').send(res);
@@ -382,34 +393,85 @@ const markDelivered = asyncHandler(async (req, res) => {
     await InventoryItem.findByIdAndUpdate(item.inventoryItem, { $set: { status: INVENTORY_STATUS.OUT_FOR_RENT } });
   }
 
-  const order = await Order.findById(item.order);
+  const [order, vendorPop, cityDoc] = await Promise.all([
+    Order.findById(item.order).populate('customer', 'name email phone'),
+    OrderItem.findById(item._id).populate('vendor', 'user').populate('product', 'name'),
+    City.findById(partner.assignedCity).select('name state'),
+  ]);
+
+  // "Total deliveries completed by this partner" for the vendor notification/profile card is
+  // scoped to *this vendor's* orders specifically (not the partner's platform-wide total,
+  // which the partner's own portal already shows) — a vendor cares how much history they
+  // personally have with this partner, not how busy the partner is elsewhere on the platform.
+  // Counted after item.save() above, so it includes the delivery that just completed.
+  const vendorDeliveryCount = vendorPop?.vendor
+    ? await OrderItem.countDocuments({ vendor: vendorPop.vendor._id, deliveryPartner: partner._id, deliveredAt: { $ne: null } })
+    : 0;
+
   if (order) {
     await Notification.create({
-      user: order.customer,
+      user: order.customer?._id || order.customer,
       title: 'Your Product Has Been Delivered Successfully',
       message: `Order ${order.orderNumber} was delivered. Your rental period has started.`,
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
-      meta: { orderNumber: order.orderNumber },
+      meta: { orderNumber: order.orderNumber, productName: vendorPop?.product?.name, status: 'Completed' },
     });
+    emitToUser(order.customer?._id || order.customer, 'notification', { reason: 'delivery-completed' });
   }
-  const vendorPop = await OrderItem.findById(item._id).populate('vendor', 'user').populate('product', 'name');
+
   if (vendorPop?.vendor?.user) {
-    await Notification.create({
+    const deliveryPartnerNotification = await Notification.create({
       user: vendorPop.vendor.user,
       title: 'Delivery Completed Successfully',
-      message: `"${vendorPop.product?.name || 'Your product'}" was delivered to the customer.`,
+      message: `${req.user.name} delivered "${vendorPop.product?.name || 'your product'}" to ${order?.customer?.name || 'the customer'}. Order ${order?.orderNumber || ''}.`,
       type: 'delivery',
       relatedEntity: { type: 'OrderItem', id: item._id },
+      meta: {
+        deliveryPartnerId: partner._id,
+        deliveryPartnerName: req.user.name,
+        deliveryPartnerPhoto: partner.profilePhoto || req.user.avatar || '',
+        deliveryPartnerPhone: req.user.phone,
+        deliveryPartnerEmail: req.user.email,
+        vehicleType: partner.vehicleType,
+        vehicleNumber: partner.vehicleNumber,
+        assignedCity: cityDoc?.name || '',
+        productName: vendorPop.product?.name || '',
+        orderNumber: order?.orderNumber || '',
+        customerName: order?.customer?.name || '',
+        customerCity: order?.deliveryAddress?.city || '',
+        deliveredAt: now,
+        totalDeliveriesForVendor: vendorDeliveryCount,
+        status: 'Completed',
+      },
     });
+    emitToUser(vendorPop.vendor.user, 'notification', { reason: 'delivery-completed', notification: deliveryPartnerNotification });
   }
+
   await Notification.create({
     user: req.user._id,
     title: 'Delivery Completed Successfully',
     message: `You've completed the delivery for order ${order?.orderNumber || ''} and earned ₹${item.deliveryFee}.`,
     type: 'delivery',
     relatedEntity: { type: 'OrderItem', id: item._id },
+    meta: { orderNumber: order?.orderNumber, productName: vendorPop?.product?.name, status: 'Completed' },
   });
+  emitToUser(req.user._id, 'notification', { reason: 'delivery-completed' });
+
+  const admins = await User.find({ role: ROLES.ADMIN }).select('_id');
+  await Promise.all(
+    admins.map(async (admin) => {
+      await Notification.create({
+        user: admin._id,
+        title: 'Delivery Completed',
+        message: `${req.user.name} delivered order ${order?.orderNumber || item._id} to ${order?.customer?.name || 'the customer'}.`,
+        type: 'delivery',
+        relatedEntity: { type: 'OrderItem', id: item._id },
+        meta: { orderNumber: order?.orderNumber, deliveryPartnerName: req.user.name, status: 'Completed' },
+      });
+      emitToUser(admin._id, 'notification', { reason: 'delivery-completed' });
+    })
+  );
 
   const populated = await OrderItem.findById(item._id).populate(ITEM_POPULATE);
   new ApiResponse(200, populated, 'Delivery confirmed — rental is now active.').send(res);
