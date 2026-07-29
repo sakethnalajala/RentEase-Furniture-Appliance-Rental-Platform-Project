@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { setRoleCookie, clearRoleCookie } from '@/lib/cookies';
+import { markActiveSession, clearActiveSessionFlag } from '@/lib/activeSession';
 
 const initialState = {
   user: null,
@@ -26,7 +27,10 @@ const authSlice = createSlice({
       // `rememberMe` always comes from the server's response (never inferred client-side), so
       // this stays correct whether we just logged in or a silent /auth/refresh restored an
       // existing session.
-      if (typeof window !== 'undefined') setRoleCookie(user.role, Boolean(rememberMe));
+      if (typeof window !== 'undefined') {
+        setRoleCookie(user.role, Boolean(rememberMe));
+        markActiveSession();
+      }
     },
     setAccessToken(state, action) {
       state.accessToken = action.payload;
@@ -53,7 +57,10 @@ const authSlice = createSlice({
     },
     logout(state) {
       Object.assign(state, initialState, { status: 'unauthenticated' });
-      if (typeof window !== 'undefined') clearRoleCookie();
+      if (typeof window !== 'undefined') {
+        clearRoleCookie();
+        clearActiveSessionFlag();
+      }
     },
   },
 });

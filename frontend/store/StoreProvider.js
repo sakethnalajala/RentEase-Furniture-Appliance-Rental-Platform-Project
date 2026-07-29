@@ -6,27 +6,31 @@ import { makeStore } from './store';
 import { authApi } from './authApi';
 import { setAccessToken, setCredentials, setUnauthenticated } from './authSlice';
 import { clearRoleCookie } from '@/lib/cookies';
+import { hasActiveSessionFlag, clearActiveSessionFlag } from '@/lib/activeSession';
 
-// Module-level (not a component ref) so this can only ever fire once per real page load — a
-// fresh script evaluation (new tab, hard reload) is the only thing that resets it. A ref-based
-// guard resets on any component remount, and on Vercel's production hosting SessionBootstrapper
-// has been observed to remount a few seconds after an explicit, interactive login (cause not
-// fully isolated — not reproducible against a local `next start` build), which let this same
-// "discard a non-remembered session" logic incorrectly fire a second time against a session the
-// user had just actively, explicitly logged into, silently bouncing them back to /login a few
-// seconds after signing in. Module scope closes that hole regardless of what triggers the remount.
+// Guards against running this effect's logic more than once per real page load. Belt-and-
+// suspenders alongside the sessionStorage check below: on Vercel's production hosting, the
+// client-side login -> /vendor (or /customer, /delivery, /admin) transition has been observed
+// to sometimes fall back to a full document reload rather than staying a soft client-side nav
+// (Next.js's own documented recovery behavior when a background route transition doesn't
+// resolve as expected) — which re-executes this whole module from scratch, including this
+// flag. A module scope survives a component remount but NOT a true document reload, which is
+// exactly why the sessionStorage check below (not this flag) is the one actually responsible
+// for not discarding a just-established session across that kind of reload.
 let hasBootstrapped = false;
 
-// Access tokens live only in memory (Redux), so a hard refresh loses them. On first mount we
-// ask whether the httpOnly refresh cookie is still good — but only actually restore the
-// session (populate Redux, land the user back in their dashboard) when that cookie was issued
-// with "Remember me" checked. Every other login (every demo login, every Google login, and any
-// manual login without the checkbox) is deliberately session-only: opening a fresh tab or
-// reloading must land back on the public Home page and require an explicit login, even though
-// the underlying refresh cookie is technically still valid for the rest of this browser
-// session — per product direction, only an explicit "Remember me" should ever silently resume
-// a session. The refresh call itself still happens (it's the only way to learn whether this
-// was a remembered session), its result is just discarded rather than applied when it wasn't.
+// Access tokens live only in memory (Redux), so a hard refresh loses them. On mount we ask
+// whether the httpOnly refresh cookie is still good — but only actually restore the session
+// (populate Redux, land the user back in their dashboard) when either (a) that cookie was
+// issued with "Remember me" checked, or (b) this exact browser TAB already had an actively,
+// explicitly established session (see lib/activeSession.js — sessionStorage, so it survives a
+// reload of this same tab but does not carry over to a genuinely separate new tab). Without
+// (b), a login that merely happens to get reloaded internally — e.g. Next.js's client router
+// falling back to a full document reload right after an explicit, non-"remembered" login —
+// would look identical to "user reopened the app later" and silently bounce them back out
+// seconds after they signed in. Every OTHER fresh tab (no flag, no remember-me cookie) still
+// requires an explicit login, which is the actual point of this whole mechanism — per product
+// direction, opening the app fresh must never silently resume a stale session.
 function SessionBootstrapper({ children }) {
   const dispatch = useDispatch();
   const store = useStore();
@@ -35,23 +39,28 @@ function SessionBootstrapper({ children }) {
     if (hasBootstrapped) return;
     hasBootstrapped = true;
 
+    const wasActiveThisTab = hasActiveSessionFlag();
+
     (async () => {
       try {
         const refreshResult = await dispatch(authApi.endpoints.refresh.initiate()).unwrap();
         const accessToken = refreshResult?.data?.accessToken;
-        if (!accessToken || !refreshResult?.data?.rememberMe) throw new Error('Not a remembered session');
+        const remembered = Boolean(refreshResult?.data?.rememberMe);
+        if (!accessToken || !(remembered || wasActiveThisTab)) throw new Error('Not a remembered session');
 
         dispatch(setAccessToken(accessToken));
         const meResult = await dispatch(authApi.endpoints.getMe.initiate(undefined, { forceRefetch: true })).unwrap();
-        dispatch(setCredentials({ user: meResult.data, accessToken, rememberMe: true }));
+        dispatch(setCredentials({ user: meResult.data, accessToken, rememberMe: remembered }));
       } catch (err) {
-        // Defense in depth: if the user already interactively logged in (e.g. this check
-        // resolved late, after a fast explicit login), never let this stale/duplicate check
-        // downgrade that live session back to unauthenticated — only discard when we're still
-        // genuinely pre-login.
+        // Defense in depth: if the user is already authenticated by the time this resolves
+        // (e.g. this check started before, but resolved after, a fast explicit login), never
+        // let a stale/duplicate check downgrade that live session — only discard pre-login.
         if (store.getState().auth.status === 'authenticated') return;
         dispatch(setUnauthenticated());
-        if (typeof window !== 'undefined') clearRoleCookie();
+        if (typeof window !== 'undefined') {
+          clearRoleCookie();
+          clearActiveSessionFlag();
+        }
       }
     })();
   }, [dispatch, store]);
