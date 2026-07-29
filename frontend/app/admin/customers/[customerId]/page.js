@@ -22,6 +22,8 @@ import {
   Receipt,
   History,
   IndianRupee,
+  ShoppingCart,
+  Heart,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -66,6 +68,8 @@ export default function AdminCustomerDetailPage() {
   const cancelledOrders = data?.data?.cancelledOrders ?? 0;
   const totalSpending = data?.data?.totalSpending ?? 0;
   const totalPayments = data?.data?.totalPayments ?? 0;
+  const cart = data?.data?.cart || [];
+  const wishlistCount = data?.data?.wishlistCount ?? 0;
 
   // "Rental history" is the same order-item lifecycle, filtered down to items that actually
   // became a rental (active or completed) — a real, currency-independent view of the customer's
@@ -133,6 +137,9 @@ export default function AdminCustomerDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">{customer.name}</h1>
               <Badge variant="brand">Customer</Badge>
+              <Badge variant={customer.isActive === false ? 'accent' : 'success'}>
+                {customer.isActive === false ? 'Inactive' : 'Active'}
+              </Badge>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
@@ -190,14 +197,45 @@ export default function AdminCustomerDetailPage() {
         )}
       </motion.div>
 
+      {/* Current cart */}
+      <motion.div variants={fadeInUp}>
+        <h2 className="mb-3 font-display text-base font-semibold text-slate-900 dark:text-white">Current cart</h2>
+        {cart.length === 0 ? (
+          <Card variant="glass" className="flex flex-col items-center gap-2 p-8 text-center">
+            <ShoppingCart size={24} className="text-slate-400" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">Cart is empty.</p>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cart.map((item) => (
+              <Card key={item._id} variant="glass" className="flex items-center gap-3 p-4">
+                {item.product?.images?.[0] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.product.images[0]} alt={item.product.name} className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/5">
+                    <ImageOff size={16} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.product?.name || 'Product'}</p>
+                  <p className="text-xs text-slate-400">Qty {item.quantity} · {money(item.monthlyRentalPrice)}/mo</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
       {/* Stats */}
-      <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-4 lg:grid-cols-7">
         <StatTile icon={ShoppingBag} label="Total orders" value={totalOrders} accent="bg-brand-500/10 text-brand-600 dark:text-brand-300" />
         <StatTile icon={CalendarClock} label="Active rentals" value={activeRentals} accent="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
         <StatTile icon={CheckCircle2} label="Completed rentals" value={completedRentals} accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
         <StatTile icon={XCircle} label="Cancelled orders" value={cancelledOrders} accent="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
         <StatTile icon={Receipt} label="Total payments" value={totalPayments} accent="bg-sky-500/10 text-sky-600 dark:text-sky-400" />
-        <StatTile icon={Wallet} label="Total spending" value={totalSpending} prefix="₹" accent="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
+        <StatTile icon={Wallet} label="Total amount paid" value={totalSpending} prefix="₹" accent="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
+        <StatTile icon={Heart} label="Wishlist items" value={wishlistCount} accent="bg-pink-500/10 text-pink-600 dark:text-pink-400" />
       </motion.div>
 
       {/* Orders */}

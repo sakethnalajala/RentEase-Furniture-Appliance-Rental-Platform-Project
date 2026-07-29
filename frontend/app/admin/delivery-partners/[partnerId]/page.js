@@ -26,6 +26,7 @@ import {
 import EditDeliveryPartnerModal from '@/components/admin/EditDeliveryPartnerModal';
 import { CountUpNumber } from '@/components/vendor/AnalyticsCharts';
 import { initials, statusLabel, formatDate, money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_BADGE = { pending: 'neutral', approved: 'success', rejected: 'accent', suspended: 'accent' };
 
@@ -92,7 +93,7 @@ function AvailabilityPill({ isAvailable }) {
 export default function AdminDeliveryPartnerDetailPage() {
   const { partnerId } = useParams();
   const router = useRouter();
-  const { data, isLoading } = useAdminGetDeliveryPartnerQuery(partnerId);
+  const { data, isLoading } = useAdminGetDeliveryPartnerQuery(partnerId, { pollingInterval: LIVE_POLL_MS });
   const [approvePartner, { isLoading: isApproving }] = useApproveDeliveryPartnerMutation();
   const [rejectPartner, { isLoading: isRejecting }] = useRejectDeliveryPartnerMutation();
   const [suspendPartner, { isLoading: isSuspending }] = useSuspendDeliveryPartnerMutation();
@@ -115,6 +116,7 @@ export default function AdminDeliveryPartnerDetailPage() {
   const cancelledDeliveries = data?.data?.cancelledDeliveries || 0;
   const complaintsCount = data?.data?.complaintsCount || 0;
   const averageRating = data?.data?.averageRating ?? partner?.averageRating ?? 0;
+  const totalEarnings = data?.data?.totalEarnings ?? 0;
 
   const handleApprove = async () => {
     try {
@@ -294,6 +296,7 @@ export default function AdminDeliveryPartnerDetailPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile icon={Package} label="Completed deliveries" value={completedDeliveries} accent="bg-brand-500/10 text-brand-600 dark:text-brand-300" />
         <StatTile icon={Zap} label="Active deliveries" value={activeDeliveries} accent="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
+        <StatTile icon={Wallet} label="Earnings" value={totalEarnings} prefix="₹" accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
         <StatTile icon={Clock} label="Pending deliveries" value={pendingDeliveries} accent="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" />
         <StatTile icon={Ban} label="Cancelled deliveries" value={cancelledDeliveries} accent="bg-slate-500/10 text-slate-600 dark:text-slate-400" />
         <StatTile

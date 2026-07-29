@@ -608,9 +608,8 @@ function isValidDemoAccountEmail(role, email) {
 // a direct link/bookmark to this URL keeps working exactly as before. The frontend's actual
 // "Continue with Google" button no longer uses this route, though — it drives the richer
 // listGoogleAccounts/selectGoogleAccount flow below instead (real accounts first, demo only as
-// a fallback, with a picker when more than one real account exists) — this GET redirect stays
-// as the simpler, always-signs-into-the-canonical-demo-account behavior for anyone hitting the
-// URL directly.
+// a fallback) — this GET redirect stays as the simpler, always-signs-into-the-canonical-demo-
+// account behavior for anyone hitting the URL directly.
 const simulateGoogleLogin = asyncHandler(async (req, res) => {
   const email = resolveDemoAccountEmail(req.query.role, req.query.city) || DEMO_ACCOUNTS.customer.email;
 
@@ -637,9 +636,10 @@ const simulateGoogleLogin = asyncHandler(async (req, res) => {
 // Powers the real "Continue with Google" button: real (non-seed) accounts for this role come
 // first — never the 25-odd filler seed customers/partners/vendors, which were never meant to be
 // login targets at all (see User.isDemoSeed) — with the platform's one canonical demo account
-// for the role offered separately as an explicit fallback. The frontend decides what to do with
-// this: log straight in if there's exactly one real account, show a picker if there's more than
-// one, or fall back to the demo account only if there are zero real ones.
+// for the role offered separately as an explicit fallback. Sorted most-recently-created first so
+// the frontend can always sign straight into `accounts[0]` with zero UI branching: that's the
+// sole account when exactly one exists, and the most recently created one when several do. There
+// is never an account-picker popup — see login/page.js's handleGoogleClick.
 const listGoogleAccounts = asyncHandler(async (req, res) => {
   if (!env.demoMode) throw ApiError.forbidden('Google sign-in simulation is only available in demo mode.');
   const { role, city } = req.query;

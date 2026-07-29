@@ -18,6 +18,8 @@ const Notification = require('../models/Notification');
 const PlatformSettings = require('../models/PlatformSettings');
 const City = require('../models/City');
 const Address = require('../models/Address');
+const Cart = require('../models/Cart');
+const Wishlist = require('../models/Wishlist');
 const notificationService = require('../services/notificationService');
 const { generateVendorDemoData } = require('../services/vendorOnboardingService');
 const { VENDOR_STATUS } = require('../constants/inventoryStatus');
@@ -49,13 +51,15 @@ async function orderIdsForCity(cityId) {
 // for the dedicated Performance screen).
 async function vendorStatsById(vendorIds) {
   if (!vendorIds.length) return {};
-  const [productCounts, itemStats] = await Promise.all([
-    Product.aggregate([{ $match: { vendor: { $in: vendorIds } } }, { $group: { _id: '$vendor', count: { $sum: 1 } } }]),
+  const [products, itemStats] = await Promise.all([
+    Product.find({ vendor: { $in: vendorIds } }).select('_id vendor').lean(),
     OrderItem.aggregate([
       { $match: { vendor: { $in: vendorIds } } },
       {
         $group: {
           _id: '$vendor',
+          totalOrders: { $sum: 1 },
+          orderIds: { $addToSet: '$order' },
           activeRentals: { $sum: { $cond: [{ $eq: ['$status', ORDER_ITEM_STATUS.ACTIVE_RENTAL] }, 1, 0] } },
           revenue: {
             $sum: {
@@ -70,15 +74,47 @@ async function vendorStatsById(vendorIds) {
       },
     ]),
   ]);
-  const productsById = Object.fromEntries(productCounts.map((p) => [String(p._id), p.count]));
+
+  const productIds = products.map((p) => p._id);
+  const productsById = {};
+  products.forEach((p) => {
+    const key = String(p.vendor);
+    (productsById[key] = productsById[key] || []).push(p._id);
+  });
+
+  const allOrderIds = [...new Set(itemStats.flatMap((s) => s.orderIds.map(String)))].map((id) => new mongoose.Types.ObjectId(id));
+  const [paymentsByOrder, inventoryByProduct] = await Promise.all([
+    allOrderIds.length
+      ? Payment.aggregate([
+          { $match: { order: { $in: allOrderIds } } },
+          { $group: { _id: '$order', count: { $sum: 1 }, total: { $sum: '$amount' } } },
+        ])
+      : [],
+    productIds.length
+      ? InventoryItem.aggregate([{ $match: { product: { $in: productIds } } }, { $group: { _id: '$product', count: { $sum: 1 } } }])
+      : [],
+  ]);
+  const paymentsByOrderId = Object.fromEntries(paymentsByOrder.map((p) => [String(p._id), p]));
+  const inventoryByProductId = Object.fromEntries(inventoryByProduct.map((i) => [String(i._id), i.count]));
+
   const itemsById = Object.fromEntries(itemStats.map((s) => [String(s._id), s]));
   const out = {};
   vendorIds.forEach((id) => {
     const key = String(id);
+    const stats = itemsById[key];
+    const vendorOrderIds = stats?.orderIds || [];
+    const totalPayments = vendorOrderIds.reduce((sum, oid) => sum + (paymentsByOrderId[String(oid)]?.count || 0), 0);
+    const totalPaid = vendorOrderIds.reduce((sum, oid) => sum + (paymentsByOrderId[String(oid)]?.total || 0), 0);
+    const vendorProductIds = productsById[key] || [];
+    const inventoryCount = vendorProductIds.reduce((sum, pid) => sum + (inventoryByProductId[String(pid)] || 0), 0);
     out[key] = {
-      productsCount: productsById[key] || 0,
-      activeRentals: itemsById[key]?.activeRentals || 0,
-      revenue: itemsById[key]?.revenue || 0,
+      productsCount: vendorProductIds.length,
+      totalOrders: stats?.totalOrders || 0,
+      activeRentals: stats?.activeRentals || 0,
+      revenue: stats?.revenue || 0,
+      totalPayments,
+      totalPaid,
+      inventoryCount,
     };
   });
   return out;
@@ -670,10 +706,12 @@ const adminGetCustomer = asyncHandler(async (req, res) => {
     .lean();
   if (!customer) throw ApiError.notFound('Customer not found.');
 
-  const [orders, addresses, payments] = await Promise.all([
+  const [orders, addresses, payments, cart, wishlist] = await Promise.all([
     Order.find({ customer: customer._id }).sort({ createdAt: -1 }).populate({ path: 'items', populate: { path: 'product', select: 'name images' } }).lean(),
     Address.find({ user: customer._id }).populate('city', 'name state').lean(),
     Payment.find({ user: customer._id }).sort({ createdAt: -1 }).populate({ path: 'order', select: 'orderNumber' }).lean(),
+    Cart.findOne({ user: customer._id }).populate('items.product', 'name images monthlyRentalPrice').lean(),
+    Wishlist.findOne({ user: customer._id }).select('products').lean(),
   ]);
   const allItems = orders.flatMap((o) => o.items);
   const activeRentals = allItems.filter((i) => i.status === ORDER_ITEM_STATUS.ACTIVE_RENTAL).length;
@@ -722,6 +760,8 @@ const adminGetCustomer = asyncHandler(async (req, res) => {
     cancelledOrders,
     totalSpending,
     totalPayments: payments.length,
+    cart: cart?.items || [],
+    wishlistCount: wishlist?.products?.length || 0,
   }).send(res);
 });
 
@@ -811,7 +851,7 @@ const adminGetDeliveryPartner = asyncHandler(async (req, res) => {
       .populate('product', 'name images')
       .sort({ createdAt: -1 })
       .limit(50),
-    OrderItem.find({ deliveryPartner: partner._id }).select('status deliveredAt deliveryRating'),
+    OrderItem.find({ deliveryPartner: partner._id }).select('status deliveredAt deliveryRating deliveryFee'),
   ]);
 
   const completed = allItems.filter((i) => i.deliveredAt);
@@ -820,6 +860,7 @@ const adminGetDeliveryPartner = asyncHandler(async (req, res) => {
   const cancelled = allItems.filter((i) => i.status === ORDER_ITEM_STATUS.CANCELLED);
   const rated = completed.filter((i) => i.deliveryRating);
   const avgRating = rated.length ? Number((rated.reduce((s, i) => s + i.deliveryRating, 0) / rated.length).toFixed(1)) : partner.averageRating;
+  const totalEarnings = completed.reduce((sum, i) => sum + (i.deliveryFee || 0), 0);
 
   new ApiResponse(200, {
     partner,
@@ -830,6 +871,7 @@ const adminGetDeliveryPartner = asyncHandler(async (req, res) => {
     cancelledDeliveries: cancelled.length,
     averageRating: avgRating,
     complaintsCount: 0,
+    totalEarnings,
   }).send(res);
 });
 

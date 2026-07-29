@@ -12,7 +12,6 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import GoogleIcon from '@/components/ui/GoogleIcon';
 import DemoAccountCard from '@/components/ui/DemoAccountCard';
-import GoogleAccountPickerModal from '@/components/ui/GoogleAccountPickerModal';
 import { TwoFactorVerifyForm, TwoFactorSetupForm } from '@/components/auth/TwoFactorViews';
 import {
   useLoginMutation,
@@ -43,7 +42,6 @@ function LoginForm({ onAuthenticated }) {
   const [demoLogin, { isLoading: isDemoLoggingIn }] = useLoginMutation();
   const [fetchGoogleAccounts, { isFetching: isLoadingGoogleAccounts }] = useLazyListGoogleAccountsQuery();
   const [selectGoogleAccount, { isLoading: isSelectingGoogleAccount }] = useSelectGoogleAccountMutation();
-  const [googlePicker, setGooglePicker] = useState({ open: false, accounts: [] });
 
   // Delivery Partner is the one role with a genuine per-city demo account — every other role's
   // demo tile stays a single fixed account. Whichever city is currently selected (the same
@@ -92,12 +90,12 @@ function LoginForm({ onAuthenticated }) {
     }
   };
 
-  // Signs into one specific account chosen either automatically (exactly one real account, or
-  // zero real accounts falling back to the platform demo one) or via the picker modal below.
+  // Signs straight into one specific account — never a picker. Which account that is was
+  // already decided by handleGoogleClick below (the platform demo account when none exist yet,
+  // the sole account when exactly one does, or the most-recently-created one otherwise).
   const finishGoogleLogin = async (account) => {
     try {
       const res = await selectGoogleAccount({ role: demoRole, email: account.email }).unwrap();
-      setGooglePicker({ open: false, accounts: [] });
       if (res.data?.user) {
         toast.success(`Logged in as ${res.data.user.name}.`);
         onAuthenticated(res.data.user);
@@ -110,15 +108,17 @@ function LoginForm({ onAuthenticated }) {
     }
   };
 
+  // Never shows an account picker. The backend already returns real (non-seed) accounts for
+  // this role sorted most-recently-created first (see listGoogleAccounts), so accounts[0] here
+  // is always "the most recently created account" — exactly what a lone real account and a
+  // multi-account tie both resolve to, with zero UI branching between those two cases.
   const handleGoogleClick = async () => {
     try {
       const res = await fetchGoogleAccounts({ role: demoRole, city: demoRole === 'delivery_partner' ? selectedCity?.name : undefined }).unwrap();
       const { accounts, demoAccount } = res.data;
 
-      if (accounts.length === 1) {
+      if (accounts.length > 0) {
         await finishGoogleLogin(accounts[0]);
-      } else if (accounts.length > 1) {
-        setGooglePicker({ open: true, accounts });
       } else if (demoAccount) {
         // No real accounts exist for this role yet — only now does the demo account apply.
         await finishGoogleLogin(demoAccount);
@@ -201,14 +201,6 @@ function LoginForm({ onAuthenticated }) {
             {isLoadingGoogleAccounts || isSelectingGoogleAccount ? <Spinner size="sm" /> : <GoogleIcon size={16} />}
             Continue with Google
           </button>
-
-          <GoogleAccountPickerModal
-            open={googlePicker.open}
-            onClose={() => setGooglePicker({ open: false, accounts: [] })}
-            accounts={googlePicker.accounts}
-            onSelect={finishGoogleLogin}
-            loading={isSelectingGoogleAccount}
-          />
 
           <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
             <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />

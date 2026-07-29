@@ -23,6 +23,9 @@ import {
   Zap,
   Wallet,
   Navigation,
+  ShoppingBag,
+  Receipt,
+  Boxes,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -39,13 +42,14 @@ import {
   useAdminDeleteVendorMutation,
 } from '@/store/adminApi';
 import { money } from '@/lib/deliveryHelpers';
+import { LIVE_POLL_MS } from '@/lib/livePoll';
 
 const STATUS_BADGE = { pending: 'neutral', approved: 'success', rejected: 'accent', suspended: 'accent' };
 
 export default function VendorDetailPage() {
   const { vendorId } = useParams();
   const router = useRouter();
-  const { data, isLoading } = useGetVendorApplicationQuery(vendorId);
+  const { data, isLoading } = useGetVendorApplicationQuery(vendorId, { pollingInterval: LIVE_POLL_MS });
   const [approveVendor, { isLoading: isApproving }] = useApproveVendorApplicationMutation();
   const [rejectVendor, { isLoading: isRejecting }] = useRejectVendorApplicationMutation();
   const [suspendVendor, { isLoading: isSuspending }] = useSuspendVendorApplicationMutation();
@@ -194,7 +198,10 @@ export default function VendorDetailPage() {
           <InfoRow icon={MapPin} label="Business address" value={vendor.businessAddress || 'Not provided'} />
           <InfoRow icon={MapPin} label="Area" value={vendor.area || 'Not provided'} />
           <InfoRow icon={Package} label="Products listed" value={vendor.productsCount ?? 0} />
+          <InfoRow icon={Boxes} label="Inventory units" value={vendor.inventoryCount ?? 0} />
+          <InfoRow icon={ShoppingBag} label="Orders" value={vendor.totalOrders ?? 0} />
           <InfoRow icon={Zap} label="Active rentals" value={vendor.activeRentals ?? 0} />
+          <InfoRow icon={Receipt} label="Payments" value={`${vendor.totalPayments ?? 0} (${money(vendor.totalPaid || 0)})`} />
           <InfoRow icon={Wallet} label="Revenue" value={money(vendor.revenue)} />
           <InfoRow
             icon={Navigation}
