@@ -3,10 +3,12 @@ const env = require('./config/env');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { initRealtime } = require('./realtime');
+const ensureDemoAccounts = require('./services/ensureDemoAccounts');
 
 async function start() {
   try {
     await connectDB();
+    await ensureDemoAccounts();
     const httpServer = app.listen(env.port, () => {
       logger.success(`RentEase API listening on port ${env.port} [${env.nodeEnv}]`);
     });

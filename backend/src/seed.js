@@ -1511,3 +1511,9 @@ module.exports = seed;
 // can re-run just this one idempotent step against a live production DB without invoking the
 // full seed() — which wipes Product/Order/InventoryItem/Payment and would destroy real data.
 module.exports.seedHeadlineDeliveryPartners = seedHeadlineDeliveryPartners;
+// Exported for services/ensureDemoAccounts.js — the lightweight, startup-safe subset of this
+// same idempotent logic (just cities + the 4 login-able demo accounts), so a brand-new,
+// never-seeded database always has working demo logins without needing the full, heavy seed()
+// pipeline (1000+ products) to have been run manually first.
+module.exports.seedDemoAdmin = seedDemoAdmin;
+module.exports.seedDemoAccounts = seedDemoAccounts;
