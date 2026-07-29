@@ -694,17 +694,33 @@ async function seedHeadlineDeliveryPartners(citiesByName) {
     const passwordHash = await bcrypt.hash(account.password, 12);
     let user = await User.findOne({ email: account.email });
     if (!user) {
-      user = await User.create({
+      const baseFields = {
         name: account.name,
         email: account.email,
-        phone: account.phone,
         passwordHash,
         role: ROLES.DELIVERY_PARTNER,
         isEmailVerified: true,
         avatar: avatarUrl(account.name),
         isDemoSeed: true,
         selectedCity: city._id,
-      });
+      };
+      try {
+        user = await User.create({ ...baseFields, phone: account.phone });
+      } catch (err) {
+        // account.phone can collide with one of the bulk-generated filler delivery partners
+        // (demoScaleData.js's random phone pool isn't guaranteed disjoint from the hand-picked
+        // headline numbers) — phone is unique+sparse but not otherwise meaningful here (never
+        // shown on the demo login card, never used to sign in), so this headline account is far
+        // more important to actually exist than to hold that exact digit string. Retrying
+        // without it rather than letting account creation silently fail was the real bug: this
+        // headline account could go permanently missing from a deployment where the collision
+        // happened to land, with no visible error anywhere.
+        if (err?.code === 11000 && err?.keyPattern?.phone) {
+          user = await User.create(baseFields);
+        } else {
+          throw err;
+        }
+      }
       logger.success(`Seeded headline demo delivery partner account (${cityName}): ${account.email}`);
     } else {
       // Self-heal: backfill isDemoSeed/selectedCity on an already-existing account. Without a
