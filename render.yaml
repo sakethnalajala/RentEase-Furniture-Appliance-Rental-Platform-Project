@@ -10,19 +10,26 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: DEMO_MODE
         value: "true"
+      # The two values below are the only manual input this blueprint asks for — Render
+      # prompts for them during setup. CLIENT_URL is the deployed frontend's exact origin
+      # (Vercel dashboard -> this project -> Settings -> Environment Variables -> CLIENT_URL,
+      # reveal to copy). MONGODB_URI must be the SAME connection string the existing Vercel
+      # backend uses (same dashboard, MONGODB_URI, reveal to copy) so this becomes a second
+      # backend pointed at the identical database rather than a fresh, empty one.
       - key: CLIENT_URL
         sync: false
       - key: MONGODB_URI
         sync: false
+      # Freshly generated rather than copied from the Vercel deployment -- simplest correct
+      # choice for a one-time migration. The one visible effect: any session issued by the old
+      # Vercel backend won't verify against these new secrets, so every user's very next
+      # request there is treated as logged-out and they sign in again once. Nothing breaks;
+      # it's just a normal login, same as any other session expiring.
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: EMAIL_TOKEN_SECRET
         generateValue: true
-      - key: SEED_SECRET
-        sync: false
