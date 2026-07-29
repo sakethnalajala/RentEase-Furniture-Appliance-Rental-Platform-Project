@@ -3,8 +3,20 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const seed = require('../seed');
+const User = require('../models/User');
+const Vendor = require('../models/Vendor');
+const DeliveryPartner = require('../models/DeliveryPartner');
+const Address = require('../models/Address');
+const Cart = require('../models/Cart');
+const Wishlist = require('../models/Wishlist');
+const Notification = require('../models/Notification');
+const Order = require('../models/Order');
+const OrderItem = require('../models/OrderItem');
+const Payment = require('../models/Payment');
 
 const router = express.Router();
+
+const TEST_ACCOUNT_NAME_PATTERN = /\b(prod\s*(sync|city)?\s*test|sync\s*test|city\s*(fix\s*)?test|verify\s*test|curl\s*test|regression\s*(customer|vendor|delivery))\b/i;
 
 // One-off production database seeding, reachable over HTTP since a serverless deployment has
 // no shell access to run `npm run seed` directly against its own database. Guarded by a shared
@@ -22,6 +34,54 @@ router.post(
 
     await seed();
     new ApiResponse(200, null, 'Seed complete.').send(res);
+  })
+);
+
+router.post(
+  '/cleanup-test-accounts',
+  asyncHandler(async (req, res) => {
+    const configuredSecret = process.env.CLEANUP_SECRET;
+    if (!configuredSecret) throw ApiError.notFound('Not found.');
+    if (req.get('x-cleanup-secret') !== configuredSecret) throw ApiError.notFound('Not found.');
+
+    const dryRun = req.query.dryRun === 'true';
+    const matches = await User.find({ isDemoSeed: false, name: TEST_ACCOUNT_NAME_PATTERN }).select('_id name email role');
+
+    if (dryRun) {
+      return new ApiResponse(200, { count: matches.length, accounts: matches }).send(res);
+    }
+
+    const summary = { deletedUsers: [], deletedOrders: 0, deletedOrderItems: 0, deletedPayments: 0 };
+
+    for (const user of matches) {
+      if (user.role === 'customer') {
+        const orders = await Order.find({ customer: user._id }).select('_id');
+        const orderIds = orders.map((o) => o._id);
+        if (orderIds.length) {
+          const itemsRes = await OrderItem.deleteMany({ order: { $in: orderIds } });
+          const paymentsRes = await Payment.deleteMany({ order: { $in: orderIds } });
+          const ordersRes = await Order.deleteMany({ _id: { $in: orderIds } });
+          summary.deletedOrderItems += itemsRes.deletedCount || 0;
+          summary.deletedPayments += paymentsRes.deletedCount || 0;
+          summary.deletedOrders += ordersRes.deletedCount || 0;
+        }
+        await Promise.all([
+          Address.deleteMany({ user: user._id }),
+          Cart.deleteMany({ user: user._id }),
+          Wishlist.deleteMany({ user: user._id }),
+        ]);
+      } else if (user.role === 'vendor') {
+        await Vendor.deleteMany({ user: user._id });
+      } else if (user.role === 'delivery_partner') {
+        await DeliveryPartner.deleteMany({ user: user._id });
+      }
+
+      await Notification.deleteMany({ user: user._id });
+      await User.deleteOne({ _id: user._id });
+      summary.deletedUsers.push({ name: user.name, email: user.email, role: user.role });
+    }
+
+    new ApiResponse(200, summary, `Removed ${summary.deletedUsers.length} test account(s).`).send(res);
   })
 );
 
