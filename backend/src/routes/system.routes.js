@@ -1,9 +1,9 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const seed = require('../seed');
+const City = require('../models/City');
 const User = require('../models/User');
 const DeliveryPartner = require('../models/DeliveryPartner');
 
@@ -28,13 +28,13 @@ router.post(
   })
 );
 
-// Temporary, one-off repair for a single corrupted demo account (Bengaluru's headline demo
-// delivery partner, demo.delivery.bengaluru@rentease.com, started rejecting its documented
-// password on production). Deliberately narrow — a full re-seed is destructive against a
-// production DB that now has real user data (seed() wipes Product/Order/Payment collections),
-// so this only resets the one known-broken account's passwordHash/isActive/isEmailVerified and
-// the DeliveryPartner sub-document's approval status back to the documented demo values, exactly
-// like seed.js's own seeding logic does for a fresh account. Same shared-secret gating as /seed.
+// Temporary, one-off repair for a missing demo account (Bengaluru's headline demo delivery
+// partner, demo.delivery.bengaluru@rentease.com, isn't in production at all — rejects its
+// documented password because there's no such user, not because of a bad hash). Deliberately
+// narrow — a full re-seed is destructive against a production DB that now has real user data
+// (seed() wipes Product/Order/InventoryItem/Payment), so this re-runs only the one idempotent
+// seed step that creates/self-heals the three non-Hyderabad headline delivery partners, exactly
+// as seed.js already does during a normal seed run. Same shared-secret gating as /seed.
 router.post(
   '/fix-account',
   asyncHandler(async (req, res) => {
@@ -43,30 +43,26 @@ router.post(
     if (req.get('x-cleanup-secret') !== configuredSecret) throw ApiError.notFound('Not found.');
 
     const email = 'demo.delivery.bengaluru@rentease.com';
-    const user = await User.findOne({ email }).select('+passwordHash');
-    if (!user) throw ApiError.notFound('Account not found.');
+    const existedBefore = Boolean(await User.findOne({ email }).select('_id'));
 
-    const before = {
-      isActive: user.isActive,
-      isEmailVerified: user.isEmailVerified,
-      role: user.role,
-      isDemoSeed: user.isDemoSeed,
-    };
+    const cities = await City.find({});
+    const citiesByName = Object.fromEntries(cities.map((c) => [c.name, c]));
+    const created = await seed.seedHeadlineDeliveryPartners(citiesByName);
 
-    user.passwordHash = await bcrypt.hash('Demo@1234', 12);
-    user.isActive = true;
-    user.isEmailVerified = true;
-    user.isDemoSeed = true;
-    await user.save();
+    const user = await User.findOne({ email });
+    const partner = user ? await DeliveryPartner.findOne({ user: user._id }) : null;
 
-    const partner = await DeliveryPartner.findOne({ user: user._id });
-    const partnerBefore = partner ? { status: partner.status } : null;
-    if (partner) {
-      partner.status = 'approved';
-      await partner.save();
-    }
-
-    new ApiResponse(200, { email, before, after: { isActive: user.isActive, isEmailVerified: user.isEmailVerified }, partnerBefore, partnerAfter: partner ? { status: partner.status } : null }, 'Account repaired.').send(res);
+    new ApiResponse(
+      200,
+      {
+        email,
+        existedBefore,
+        userNow: user ? { name: user.name, isActive: user.isActive, isEmailVerified: user.isEmailVerified, isDemoSeed: user.isDemoSeed } : null,
+        partnerNow: partner ? { status: partner.status } : null,
+        citiesHandled: Object.keys(created || {}),
+      },
+      existedBefore ? 'Account self-healed.' : 'Account created.'
+    ).send(res);
   })
 );
 

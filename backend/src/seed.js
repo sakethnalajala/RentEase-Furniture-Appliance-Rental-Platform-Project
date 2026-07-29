@@ -1491,3 +1491,7 @@ async function seed() {
 // from inside a request handler would kill the whole function mid-response, so this module
 // must never do that itself.
 module.exports = seed;
+// Also exported individually so a narrow one-off repair (e.g. system.routes.js's /fix-account)
+// can re-run just this one idempotent step against a live production DB without invoking the
+// full seed() — which wipes Product/Order/InventoryItem/Payment and would destroy real data.
+module.exports.seedHeadlineDeliveryPartners = seedHeadlineDeliveryPartners;
