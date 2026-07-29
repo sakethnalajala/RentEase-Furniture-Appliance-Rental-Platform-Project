@@ -10,6 +10,15 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Render's own reverse proxy expects the app on port 10000 unless told otherwise, and
+      # falls back to an unreliable port scan if PORT is left unset — src/config/env.js reads
+      # process.env.PORT but defaults to 5000 (this app's local-dev port) when it's absent, so
+      # omitting this line here previously produced a real, confirmed bug: the process runs and
+      # binds fine, just on a port Render's proxy never finds, which is exactly what an
+      # `x-render-routing: no-server` response on every request means. Must match whatever the
+      # Render dashboard's own PORT value is for this service if that's ever changed by hand.
+      - key: PORT
+        value: "10000"
       - key: DEMO_MODE
         value: "true"
       # The two values below are the only manual input this blueprint asks for — Render
