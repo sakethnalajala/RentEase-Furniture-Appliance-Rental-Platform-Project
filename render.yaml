@@ -1,3 +1,24 @@
+# Values that need to stay editable from the Render dashboard AFTER the service already
+# exists (not just at first-time Blueprint creation) belong in an envVarGroup, not directly on
+# the service's own envVars with sync: false. Render only prompts for a service-level
+# `sync: false` var once, during initial Blueprint setup, and ignores it on every later sync —
+# which is exactly what produces a dashboard error when you try to edit one on an
+# already-created, Blueprint-managed service. Env var group values remain manageable from the
+# dashboard indefinitely. See https://render.com/docs/blueprint-spec.
+envVarGroups:
+  - name: rentease-secrets
+    envVars:
+      # Not a secret (it's this app's own public frontend origin — already hardcoded as a CORS
+      # fallback in backend/src/app.js too), pre-filled so there's one less manual step. Still
+      # freely editable from the dashboard afterward if the frontend URL ever changes.
+      - key: CLIENT_URL
+        value: https://rentease-furniture-rental-ecru.vercel.app
+      # A real secret (contains DB credentials) — deliberately no value here. Set it once from
+      # the Render dashboard: this service -> Environment -> find MONGODB_URI in the
+      # rentease-secrets group -> paste your MongoDB Atlas connection string.
+      - key: MONGODB_URI
+        sync: false
+
 services:
   - type: web
     name: rentease-backend
@@ -7,6 +28,8 @@ services:
     buildCommand: npm install
     startCommand: node src/server.js
     healthCheckPath: /api/v1/cities
+    envVarGroups:
+      - rentease-secrets
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,21 +44,10 @@ services:
         value: "10000"
       - key: DEMO_MODE
         value: "true"
-      # The two values below are the only manual input this blueprint asks for — Render
-      # prompts for them during setup. CLIENT_URL is the deployed frontend's exact origin
-      # (Vercel dashboard -> this project -> Settings -> Environment Variables -> CLIENT_URL,
-      # reveal to copy). MONGODB_URI must be the SAME connection string the existing Vercel
-      # backend uses (same dashboard, MONGODB_URI, reveal to copy) so this becomes a second
-      # backend pointed at the identical database rather than a fresh, empty one.
-      - key: CLIENT_URL
-        sync: false
-      - key: MONGODB_URI
-        sync: false
-      # Freshly generated rather than copied from the Vercel deployment -- simplest correct
-      # choice for a one-time migration. The one visible effect: any session issued by the old
-      # Vercel backend won't verify against these new secrets, so every user's very next
-      # request there is treated as logged-out and they sign in again once. Nothing breaks;
-      # it's just a normal login, same as any other session expiring.
+      # Generated once at first creation, not copied from anywhere -- simplest correct choice
+      # for a standalone deployment. this app reads three separate secrets (env.js), not one
+      # combined JWT_SECRET, so all three are declared here rather than a single key that
+      # wouldn't match what the code actually looks for.
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
