@@ -45,6 +45,11 @@ router.post(
     const email = 'demo.delivery.bengaluru@rentease.com';
     const existedBefore = Boolean(await User.findOne({ email }).select('_id'));
 
+    if (req.query.diagnose === 'true') {
+      const phoneHolder = await User.findOne({ phone: '9000000013' }).select('name email role isDemoSeed createdAt');
+      return new ApiResponse(200, { email, existedBefore, phoneHolder }).send(res);
+    }
+
     const cities = await City.find({});
     const citiesByName = Object.fromEntries(cities.map((c) => [c.name, c]));
     const created = await seed.seedHeadlineDeliveryPartners(citiesByName);
