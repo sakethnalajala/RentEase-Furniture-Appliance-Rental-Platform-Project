@@ -6,6 +6,7 @@ const Vendor = require('../models/Vendor');
 const Product = require('../models/Product');
 const OrderItem = require('../models/OrderItem');
 const DeliveryPartner = require('../models/DeliveryPartner');
+const RentalRequestDecision = require('../models/RentalRequestDecision');
 const { buildFileUrl } = require('../utils/fileUrl');
 const { ORDER_ITEM_STATUS } = require('../constants/orderStatus');
 
@@ -316,4 +317,51 @@ const getDeliveryAnalytics = asyncHandler(async (req, res) => {
   }).send(res);
 });
 
-module.exports = { getMyProfile, updateMyProfile, uploadImage, getMyStats, listDeliveryPartners, getDeliveryAnalytics };
+// Rental Requests (frontend/lib/mockVendorData.js's buildRentalRequests) are demo data
+// synthesized client-side from the vendor's real catalog — there's no real "customer requests a
+// rental before ordering" flow in this app, so there's no request document to fetch by id here.
+// What IS real: whether THIS vendor has already recorded an Approve/Decline decision for a given
+// request id, which is exactly what these two endpoints expose/persist.
+const listRentalRequestDecisions = asyncHandler(async (req, res) => {
+  const vendor = await Vendor.findOne({ user: req.user._id });
+  if (!vendor) throw ApiError.notFound('Vendor profile not found.');
+
+  const decisions = await RentalRequestDecision.find({ vendor: vendor._id }).select('requestId status -_id');
+  const byRequestId = Object.fromEntries(decisions.map((d) => [d.requestId, d.status]));
+  new ApiResponse(200, byRequestId).send(res);
+});
+
+const decideRentalRequest = asyncHandler(async (req, res) => {
+  const vendor = await Vendor.findOne({ user: req.user._id });
+  if (!vendor) throw ApiError.notFound('Vendor profile not found.');
+
+  const { requestId } = req.params;
+  const { action } = req.body;
+  if (!['approve', 'decline'].includes(action)) throw ApiError.badRequest('action must be "approve" or "decline".');
+  const status = action === 'approve' ? 'approved' : 'declined';
+
+  const existing = await RentalRequestDecision.findOne({ vendor: vendor._id, requestId });
+  if (existing) throw ApiError.conflict(`This request was already ${existing.status}.`);
+
+  // The unique (vendor, requestId) index is still the real guard against a race between two
+  // concurrent requests for the same id — this findOne is just what turns that into a clean,
+  // specific error message instead of a raw duplicate-key exception reaching the client.
+  try {
+    const decision = await RentalRequestDecision.create({ vendor: vendor._id, requestId, status });
+    new ApiResponse(200, decision, `Rental request ${status}.`).send(res);
+  } catch (err) {
+    if (err.code === 11000) throw ApiError.conflict('This request was already decided.');
+    throw err;
+  }
+});
+
+module.exports = {
+  getMyProfile,
+  updateMyProfile,
+  uploadImage,
+  getMyStats,
+  listDeliveryPartners,
+  getDeliveryAnalytics,
+  listRentalRequestDecisions,
+  decideRentalRequest,
+};

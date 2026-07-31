@@ -64,6 +64,7 @@ export const api = createApi({
     'DeliveryAssigned',
     'DeliveryHistory',
     'VendorDeliveryPartners',
+    'RentalRequestDecisions',
     'AdminProducts',
     'AdminCategories',
     'AdminInventory',

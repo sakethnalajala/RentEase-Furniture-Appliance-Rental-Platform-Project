@@ -55,6 +55,16 @@ export const vendorApi = api.injectEndpoints({
       query: (params) => `/vendors/me/delivery-analytics${buildQueryString(params)}`,
       providesTags: ['VendorDeliveryPartners'],
     }),
+    // Rental Requests: real, persisted Approve/Decline decisions keyed by the mock request's own
+    // stable id (see mockVendorData.js's buildRentalRequests) — {requestId: 'approved'|'declined'}.
+    listRentalRequestDecisions: builder.query({
+      query: () => '/vendors/me/rental-requests/decisions',
+      providesTags: ['RentalRequestDecisions'],
+    }),
+    decideRentalRequest: builder.mutation({
+      query: ({ requestId, action }) => ({ url: `/vendors/me/rental-requests/${requestId}/decide`, method: 'POST', body: { action } }),
+      invalidatesTags: ['RentalRequestDecisions'],
+    }),
   }),
 });
 
@@ -69,4 +79,6 @@ export const {
   useListVendorCategoriesQuery,
   useListVendorDeliveryPartnersQuery,
   useGetVendorDeliveryAnalyticsQuery,
+  useListRentalRequestDecisionsQuery,
+  useDecideRentalRequestMutation,
 } = vendorApi;

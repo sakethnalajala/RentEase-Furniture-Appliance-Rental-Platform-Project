@@ -13,8 +13,13 @@ import Select from '@/components/ui/Select';
 import Skeleton from '@/components/ui/Skeleton';
 import OrderStatusBadge from '@/components/vendor/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
-import { useGetMyVendorProfileQuery, useListMyProductsQuery } from '@/store/vendorApi';
+import {
+  useGetMyVendorProfileQuery, useListMyProductsQuery,
+  useListRentalRequestDecisionsQuery, useDecideRentalRequestMutation,
+} from '@/store/vendorApi';
 import { buildRentalRequests, REQUEST_STATUSES } from '@/lib/mockVendorData';
+
+const DECISION_STATUS_LABEL = { approved: 'Approved', declined: 'Declined' };
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...REQUEST_STATUSES.map((s) => ({ value: s, label: s }))];
 const PAGE_SIZE = 20;
@@ -48,7 +53,20 @@ export default function VendorRentalRequestsPage() {
   const products = productsData?.data?.items || [];
   // 220 realistic requests synthesized from the vendor's real catalog — demo data (no Order
   // backend exists yet) but with genuine variety: different customers, cities, dates, plans.
-  const allRequests = useMemo(() => buildRentalRequests(products, 220), [products]);
+  const rawRequests = useMemo(() => buildRentalRequests(products, 220), [products]);
+
+  // Real, database-persisted Approve/Decline decisions, keyed by each mock request's own stable
+  // id — overlaid on top of the synthesized list so a decision (and the buttons disappearing
+  // because of it) survives a refresh instead of resetting to whatever status was seeded.
+  const { data: decisionsData } = useListRentalRequestDecisionsQuery();
+  const decisions = decisionsData?.data || {};
+  const [decideRequest] = useDecideRentalRequestMutation();
+  const [pendingId, setPendingId] = useState(null);
+
+  const allRequests = useMemo(
+    () => rawRequests.map((r) => (decisions[r.id] ? { ...r, status: DECISION_STATUS_LABEL[decisions[r.id]] } : r)),
+    [rawRequests, decisions]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -83,8 +101,21 @@ export default function VendorRentalRequestsPage() {
     return () => observer.disconnect();
   }, [hasMore, filtered.length]);
 
-  const handleAction = (action) => {
-    toast.success(action === 'approve' ? 'Rental request approved.' : 'Rental request declined.');
+  const handleAction = async (requestId, action) => {
+    // Guards against a double-click firing two requests before the first one's response (and
+    // its cache invalidation, which is what actually removes the buttons) comes back — the
+    // backend's own unique index rejects a genuine duplicate either way, but this avoids ever
+    // sending the second one in the first place.
+    if (pendingId) return;
+    setPendingId(requestId);
+    try {
+      await decideRequest({ requestId, action }).unwrap();
+      toast.success(action === 'approve' ? 'Rental request approved.' : 'Rental request declined.');
+    } catch (err) {
+      toast.error(err?.data?.message || 'Could not update this request. Please try again.');
+    } finally {
+      setPendingId(null);
+    }
   };
 
   return (
@@ -147,10 +178,21 @@ export default function VendorRentalRequestsPage() {
 
                   {req.status === 'Requested' && (
                     <div className="flex shrink-0 gap-2">
-                      <Button size="sm" onClick={() => handleAction('approve')}>
+                      <Button
+                        size="sm"
+                        loading={pendingId === req.id}
+                        disabled={pendingId !== null && pendingId !== req.id}
+                        onClick={() => handleAction(req.id, 'approve')}
+                      >
                         <Check size={14} /> Approve
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('decline')}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        loading={pendingId === req.id}
+                        disabled={pendingId !== null && pendingId !== req.id}
+                        onClick={() => handleAction(req.id, 'decline')}
+                      >
                         <X size={14} /> Decline
                       </Button>
                     </div>

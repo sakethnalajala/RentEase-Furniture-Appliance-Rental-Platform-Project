@@ -16,5 +16,7 @@ router.post('/me/image', upload.single('file'), ctrl.uploadImage);
 router.get('/me/stats', ctrl.getMyStats);
 router.get('/me/delivery-partners', ctrl.listDeliveryPartners);
 router.get('/me/delivery-analytics', ctrl.getDeliveryAnalytics);
+router.get('/me/rental-requests/decisions', ctrl.listRentalRequestDecisions);
+router.post('/me/rental-requests/:requestId/decide', ctrl.decideRentalRequest);
 
 module.exports = router;
