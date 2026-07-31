@@ -166,6 +166,12 @@ async function seedDemoAdmin() {
   } else {
     user.passwordHash = passwordHash;
     user.isDemoSeed = true;
+    // Self-heal: a demo account must always be login-able — isActive/isEmailVerified can drift
+    // false from an earlier "deactivate account" test run (real, self-service functionality
+    // this app exposes) or manual DB edit, silently turning "wrong password" into "account
+    // deactivated" on the exact same login attempt with no visible cause otherwise.
+    user.isActive = true;
+    user.isEmailVerified = true;
     await user.save();
     logger.info(`Demo Admin account already exists — password synced: ${admin.email}`);
   }
@@ -189,8 +195,10 @@ async function seedDemoAccounts(superAdmin, citiesByName) {
       isDemoSeed: true,
     });
     logger.success(`Seeded demo Customer account: ${customer.email}`);
-  } else if (!existingDemoCustomer.isDemoSeed) {
+  } else if (!existingDemoCustomer.isDemoSeed || !existingDemoCustomer.isActive || !existingDemoCustomer.isEmailVerified) {
     existingDemoCustomer.isDemoSeed = true;
+    existingDemoCustomer.isActive = true;
+    existingDemoCustomer.isEmailVerified = true;
     await existingDemoCustomer.save();
   }
 
@@ -223,14 +231,27 @@ async function seedDemoAccounts(superAdmin, citiesByName) {
     logger.success(`Seeded demo Vendor account (pre-approved): ${vendor.email}`);
   } else {
     await Vendor.updateOne({ user: vendorUser._id, coverImage: '' }, { $set: { coverImage: VENDOR_COVER_IMAGE } });
-    if (!vendorUser.isDemoSeed) {
+    if (!vendorUser.isDemoSeed || !vendorUser.isActive || !vendorUser.isEmailVerified) {
       vendorUser.isDemoSeed = true;
+      // Self-heal: isActive/isEmailVerified can drift false from an earlier "deactivate
+      // account" test run or manual DB edit, silently turning "wrong password" into "account
+      // deactivated" on the exact same login attempt with no visible cause otherwise. A demo
+      // account must always be login-able.
+      vendorUser.isActive = true;
+      vendorUser.isEmailVerified = true;
       await vendorUser.save();
     }
     // Self-heal: backfill operatingCities on an already-existing account from before this was set.
     await Vendor.updateOne(
       { user: vendorUser._id, operatingCities: { $size: 0 } },
       { $set: { operatingCities: Object.entries(citiesByName).filter(([name]) => name !== 'Hyderabad').map(([, c]) => c._id) } }
+    );
+    // Self-heal: force the demo Vendor's own approval status back to APPROVED — it can drift to
+    // rejected/suspended from an earlier Admin Vendor Management test run against this exact
+    // account, which would otherwise silently keep blocking every future demo login.
+    await Vendor.updateOne(
+      { user: vendorUser._id, status: { $ne: VENDOR_STATUS.APPROVED } },
+      { $set: { status: VENDOR_STATUS.APPROVED, approvedBy: superAdmin._id, approvedAt: new Date(), rejectionReason: '' } }
     );
   }
 
@@ -257,14 +278,22 @@ async function seedDemoAccounts(superAdmin, citiesByName) {
     });
     logger.success(`Seeded demo Delivery Partner account: ${deliveryPartner.email}`);
   } else {
-    if (!existingDemoDeliveryUser.isDemoSeed) {
+    if (!existingDemoDeliveryUser.isDemoSeed || !existingDemoDeliveryUser.isActive || !existingDemoDeliveryUser.isEmailVerified) {
       existingDemoDeliveryUser.isDemoSeed = true;
+      existingDemoDeliveryUser.isActive = true;
+      existingDemoDeliveryUser.isEmailVerified = true;
       await existingDemoDeliveryUser.save();
     }
     // Self-heal: backfill `area` on an already-existing account from before this field existed.
     await DeliveryPartner.updateOne(
       { user: existingDemoDeliveryUser._id, $or: [{ area: { $exists: false } }, { area: '' }] },
       { $set: { area: (AREA_BY_CITY.Hyderabad || [])[0] || '' } }
+    );
+    // Self-heal: force this demo account's own approval status back to APPROVED — it can drift
+    // from an earlier Admin test run against this exact account, silently blocking future logins.
+    await DeliveryPartner.updateOne(
+      { user: existingDemoDeliveryUser._id, status: { $ne: VENDOR_STATUS.APPROVED } },
+      { $set: { status: VENDOR_STATUS.APPROVED, rejectionReason: '' } }
     );
     // Self-heal: force selectedCity back to Hyderabad on an already-existing account — it can
     // drift (e.g. a live browser session picking a different city anywhere the header
