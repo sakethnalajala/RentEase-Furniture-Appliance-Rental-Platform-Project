@@ -6,8 +6,6 @@
 
 A production-grade, multi-vendor, multi-city rental marketplace with four purpose-built portals (Customer, Vendor, Delivery Partner, Admin), a 121-endpoint REST API, and a single unified Vercel deployment.
 
-[![Live Demo](https://img.shields.io/badge/▲_Live_Demo-rentease--furniture--rental-6366F1?style=for-the-badge&logo=vercel&logoColor=white)](https://rentease-furniture-rental-ecru.vercel.app)
-
 [![Next.js 14](https://img.shields.io/badge/Next.js_14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React 18](https://img.shields.io/badge/React_18-149ECA?style=flat-square&logo=react&logoColor=white)](https://react.dev)
 [![Express](https://img.shields.io/badge/Express.js-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
@@ -20,7 +18,6 @@ A production-grade, multi-vendor, multi-city rental marketplace with four purpos
 [![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://vercel.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-🔗 **Live Application →** [rentease-furniture-rental-ecru.vercel.app](https://rentease-furniture-rental-ecru.vercel.app)
 &nbsp;·&nbsp; 💻 **Source →** [github.com/sakethnalajala/RentEase-Furniture-Appliance-Rental-Platform-Project](https://github.com/sakethnalajala/RentEase-Furniture-Appliance-Rental-Platform-Project)
 
 <br/>
