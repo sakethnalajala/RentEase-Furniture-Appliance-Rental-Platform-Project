@@ -759,7 +759,17 @@ async function seedHeadlineDeliveryPartners(citiesByName) {
       let changed = false;
       if (!user.isDemoSeed) { user.isDemoSeed = true; changed = true; }
       if (String(user.selectedCity || '') !== String(city._id)) { user.selectedCity = city._id; changed = true; }
+      // Self-heal, same as the Hyderabad account in seedDemoAccounts: these are the city-specific
+      // targets of the login page's "Login as Demo Delivery Partner" button, so a drifted
+      // isActive/isEmailVerified (e.g. a visitor using "deactivate account") must not lock
+      // every later visitor out of that city's demo login.
+      if (!user.isActive) { user.isActive = true; changed = true; }
+      if (!user.isEmailVerified) { user.isEmailVerified = true; changed = true; }
       if (changed) await user.save();
+      await DeliveryPartner.updateOne(
+        { user: user._id, status: { $ne: VENDOR_STATUS.APPROVED } },
+        { $set: { status: VENDOR_STATUS.APPROVED, rejectionReason: '' } }
+      );
     }
 
     let partner = await DeliveryPartner.findOne({ user: user._id });

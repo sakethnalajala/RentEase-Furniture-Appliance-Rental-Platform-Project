@@ -1,3 +1,5 @@
+const { ROLES } = require('./roles');
+
 // Publicly-known demo credentials shown on the Register/Login pages so reviewers can click
 // straight into each role without registering — seeded by seed.js, only ever meaningful
 // when env.demoMode is on. Keep in sync with frontend/lib/demoAccounts.js.
@@ -74,4 +76,14 @@ const DELIVERY_PARTNERS_BY_CITY = {
   },
 };
 
-module.exports = { DEMO_ACCOUNTS, DELIVERY_PARTNERS_BY_CITY };
+// Every login the Login/Sign Up pages' "Login as Demo …" buttons can submit, with the role it must
+// authenticate as — used by services/ensureDemoAccounts.js (startup credential repair) and
+// scripts/checkDemoAccounts.js (read-only check against a real database).
+const DEMO_LOGINS = [
+  { ...DEMO_ACCOUNTS.customer, role: ROLES.CUSTOMER },
+  { ...DEMO_ACCOUNTS.vendor, role: ROLES.VENDOR },
+  ...Object.entries(DELIVERY_PARTNERS_BY_CITY).map(([city, account]) => ({ ...account, role: ROLES.DELIVERY_PARTNER, city })),
+  { ...DEMO_ACCOUNTS.admin, role: ROLES.ADMIN },
+];
+
+module.exports = { DEMO_ACCOUNTS, DELIVERY_PARTNERS_BY_CITY, DEMO_LOGINS };

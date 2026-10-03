@@ -1,5 +1,6 @@
 const express = require('express');
 const ApiResponse = require('../utils/ApiResponse');
+const { getDbStatus } = require('../config/db');
 const authRoutes = require('./auth.routes');
 const userRoutes = require('./user.routes');
 const cityRoutes = require('./city.routes');
@@ -17,8 +18,15 @@ const systemRoutes = require('./system.routes');
 
 const router = express.Router();
 
+// Reports database readiness too (never connection details), so checking
+// https://<backend>/api/v1/health right after updating MONGODB_URI shows whether it worked.
 router.get('/health', (req, res) => {
-  new ApiResponse(200, { uptime: process.uptime() }, 'RentEase API is healthy.').send(res);
+  const { ready, lastError, dbName } = getDbStatus();
+  const database = ready
+    ? { status: 'connected', name: dbName }
+    : { status: 'unavailable', name: dbName, code: lastError?.code || 'DB_STARTING', reason: lastError?.message };
+  const message = ready ? 'RentEase API is healthy.' : 'RentEase API is running, but the database is unavailable.';
+  new ApiResponse(ready ? 200 : 503, { uptime: process.uptime(), database }, message).send(res);
 });
 
 router.use('/auth', authRoutes);

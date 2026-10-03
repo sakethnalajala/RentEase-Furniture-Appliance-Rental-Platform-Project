@@ -1,5 +1,5 @@
 const { Server } = require('socket.io');
-const env = require('../config/env');
+const { isAllowedOrigin } = require('../config/cors');
 const tokenService = require('../services/tokenService');
 const User = require('../models/User');
 const logger = require('../utils/logger');
@@ -34,7 +34,7 @@ async function authenticateSocket(socket, next) {
 // page they're on.
 function initRealtime(httpServer) {
   const io = new Server(httpServer, {
-    cors: { origin: env.clientUrl, credentials: true },
+    cors: { origin: (origin, callback) => callback(null, isAllowedOrigin(origin)), credentials: true },
   });
 
   io.use(authenticateSocket);

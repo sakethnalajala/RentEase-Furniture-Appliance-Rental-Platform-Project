@@ -20,6 +20,7 @@ import {
 } from '@/store/authApi';
 import { DEMO_ACCOUNTS, DELIVERY_PARTNER_BY_CITY } from '@/lib/demoAccounts';
 import { getRoleHomePath } from '@/lib/roleRedirect';
+import { describeApiError } from '@/lib/apiErrors';
 
 const LOGIN_DEMO_ROLES = [
   { key: 'customer', label: 'Customer', icon: User },
@@ -86,19 +87,11 @@ function LoginForm({ onAuthenticated }) {
       // this page's own `view` to the matching form (see LoginPage below); no fake "logged in"
       // toast until that actually completes.
     } catch (err) {
-      // A generic "failed, try again" toast was indistinguishable between "wrong credentials"
-      // and "the request never reached the server at all" (network/CORS failure) — exactly the
-      // ambiguity that made a real backend outage look identical to a demo-data problem.
-      // RTK Query's rejected shape carries enough to tell these apart: `err.status === 'FETCH_ERROR'`
-      // means the browser never got a response (network/CORS/DNS — see err.error for the raw
-      // reason); any other `status` is a real HTTP response from the API with its own message.
+      // Never a bare "failed, try again" — see describeApiError for why network failures, wrong
+      // API URLs, and real API errors (bad credentials, database down) each get their own message.
       // eslint-disable-next-line no-console
       console.error('Demo login failed:', err);
-      if (err?.status === 'FETCH_ERROR') {
-        toast.error(`Could not reach the server (${err.error || 'network error'}). Check the browser console/Network tab for details.`);
-      } else {
-        toast.error(err?.data?.message || 'Demo login failed. Please try again.');
-      }
+      toast.error(describeApiError(err, 'Demo login failed. Please try again.'));
     }
   };
 
@@ -116,7 +109,7 @@ function LoginForm({ onAuthenticated }) {
       // already moved Redux into requires2FA/requires2FASetup, and this page's own `view`
       // switches to the matching form on its next render.
     } catch (err) {
-      toast.error(err?.data?.message || 'Could not sign in with this account.');
+      toast.error(describeApiError(err, 'Could not sign in with this account.'));
     }
   };
 
@@ -137,8 +130,8 @@ function LoginForm({ onAuthenticated }) {
       } else {
         toast.error('No account found. Please create an account first.');
       }
-    } catch {
-      toast.error('Could not load accounts for Google sign-in. Please try again.');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Could not load accounts for Google sign-in. Please try again.'));
     }
   };
 
@@ -241,7 +234,7 @@ function LoginForm({ onAuthenticated }) {
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
-            {error && <p className="text-sm text-rose-500">{error.data?.message || 'Login failed.'}</p>}
+            {error && <p className="text-sm text-rose-500">{describeApiError(error, 'Login failed.')}</p>}
             <div className="flex items-center justify-between">
               <label className="flex select-none items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <input

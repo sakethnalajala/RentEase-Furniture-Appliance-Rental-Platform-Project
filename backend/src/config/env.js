@@ -1,10 +1,20 @@
 require('dotenv').config();
 
+const nodeEnv = process.env.NODE_ENV || 'development';
+
+// Dashboard-pasted secrets often pick up stray whitespace or wrapping quotes (e.g. pasting
+// "mongodb+srv://..." with its quotes into Render's Environment tab), which the MongoDB driver
+// rejects with an error that looks unrelated to the actual typo.
+const cleanEnvValue = (value) => (value || '').trim().replace(/^(['"])(.*)\1$/, '$2');
+
 const env = {
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv,
   port: Number(process.env.PORT) || 5000,
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/rentease',
+  // No localhost fallback in production: a MONGODB_URI missing from the host's settings must
+  // fail with that exact cause (see config/db.js), not as a confusing ECONNREFUSED against a
+  // local database that was never going to exist on Render.
+  mongodbUri: cleanEnvValue(process.env.MONGODB_URI) || (nodeEnv === 'production' ? '' : 'mongodb://127.0.0.1:27017/rentease'),
 
   // Demo Mode relaxes a handful of real-world gates (mandatory email verification,
   // real OTP delivery/matching) so the whole app can be clicked through end-to-end with

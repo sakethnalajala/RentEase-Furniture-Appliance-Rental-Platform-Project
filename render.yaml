@@ -25,8 +25,10 @@ services:
       # ignores them on every later sync, so changing one on an already-created service means
       # editing it directly on the service's own Environment tab in the dashboard, not through
       # render.yaml. CLIENT_URL is this app's own public frontend origin (not a secret — the
-      # same value is already hardcoded as a CORS fallback in backend/src/app.js).
-      # MONGODB_URI is a real secret and must never have a value committed here.
+      # same value is already hardcoded as a CORS fallback in backend/src/config/cors.js).
+      # MONGODB_URI is a real secret and must never have a value committed here — after changing
+      # the Atlas database user's password, update it on the service's Environment tab (URL-encode
+      # special characters) and redeploy; GET /api/v1/health then reports whether it connected.
       - key: CLIENT_URL
         sync: false
       - key: MONGODB_URI

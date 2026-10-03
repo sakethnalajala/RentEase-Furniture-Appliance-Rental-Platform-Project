@@ -4,7 +4,7 @@
 
 **Rent quality furniture and appliances on flexible monthly plans — instead of owning them outright.**
 
-A production-grade, multi-vendor, multi-city rental marketplace with four purpose-built portals (Customer, Vendor, Delivery Partner, Admin), a 121-endpoint REST API, and a single unified Vercel deployment.
+A production-grade, multi-vendor, multi-city rental marketplace with four purpose-built portals (Customer, Vendor, Delivery Partner, Admin), a 121-endpoint REST API, a Next.js frontend on Vercel, and an Express + Socket.IO API on Render backed by MongoDB Atlas.
 
 [![Next.js 14](https://img.shields.io/badge/Next.js_14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React 18](https://img.shields.io/badge/React_18-149ECA?style=flat-square&logo=react&logoColor=white)](https://react.dev)
@@ -159,7 +159,7 @@ Jest + Supertest (API tests) · `mongodb-memory-server` (ephemeral local DB, no 
 </td></tr>
 <tr><td valign="top"><strong>Deployment</strong></td><td>
 
-**Single unified Vercel project** — the Next.js frontend and the Express API (wrapped as one Vercel serverless function) deploy together from one repository, one build, one production domain. No separate backend host required.
+**Vercel + Render + MongoDB Atlas** — the Next.js frontend deploys to Vercel ([`vercel.json`](vercel.json)); the Express API and its Socket.IO realtime layer run as a persistent Node service on Render ([`render.yaml`](render.yaml)), which WebSockets require; data lives in MongoDB Atlas. See [Production deployment](#production-deployment).
 
 </td></tr>
 </table>
@@ -171,40 +171,27 @@ Jest + Supertest (API tests) · `mongodb-memory-server` (ephemeral local DB, no 
 ### System diagram
 
 ```
-                              ┌───────────────────────────┐
-                              │          Browser            │
-                              │  Customer / Vendor / Delivery│
-                              │        / Admin portal        │
-                              └─────────────┬─────────────┘
-                                            │ HTTPS
-                              ┌─────────────▼─────────────┐
-                              │   rentease-furniture-       │
-                              │   rental-ecru.vercel.app     │
-                              │  (single Vercel deployment)  │
-                              └─────────────┬─────────────┘
-                          ┌──────────────────┼──────────────────┐
-                          │ /  (all other routes)                │ /api/v1/*
-             ┌────────────▼────────────┐          ┌─────────────▼─────────────┐
-             │  Next.js 14 App Router    │          │  Express REST API           │
-             │  Redux Toolkit + RTK Query│  fetch   │  (Vercel serverless fn)     │
-             │  Server + Client Components│◄────────┤  Auth · RBAC · Zod          │
-             └────────────────────────────┘          │  Controllers · Services    │
-                                                       └──┬──────┬──────┬──────┬──┘
-                                          ┌────────────────┘      │      │      └───────────────┐
-                                          ▼                       ▼      ▼                       ▼
-                                   ┌─────────────┐         ┌──────────┐ ┌────────┐     ┌───────────────────┐
-                                   │  MongoDB     │         │Cloudinary│ │Razorpay│     │Twilio / SMTP / FCM │
-                                   │  (Mongoose)  │         │(uploads) │ │(payments)│    │(SMS / Email / Push)│
-                                   └─────────────┘         └──────────┘ └────────┘     └───────────────────┘
-                                                                          all four optional — safe, console-logged
-                                                                          simulation used automatically when unconfigured
+Browser (Customer / Vendor / Delivery / Admin portals)
+   │
+   ├── HTTPS pages ───────────────────►  Vercel · Next.js 14 App Router frontend
+   │                                      rentease-furniture-rental-ecru.vercel.app
+   │                                      Redux Toolkit + RTK Query
+   │
+   └── REST /api/v1/* + Socket.IO ────►  Render · Express REST API + Socket.IO
+       (CORS · JWT · httpOnly refresh)    persistent Node process (node src/server.js)
+                                          Auth · RBAC · Zod · Controllers · Services
+                                             │
+                                             ├──► MongoDB Atlas (Mongoose, via MONGODB_URI)
+                                             └──► Cloudinary · Razorpay · Twilio/SMTP · FCM
+                                                  all optional — safe, console-logged
+                                                  simulation used automatically when unconfigured
 ```
 
 ### Monorepo layout
 
 ```
 RentEase/
-├── backend/     Express REST API — wrapped as a Vercel serverless function at backend/api/index.js
+├── backend/     Express REST API + Socket.IO — deployed to Render (render.yaml)
 └── frontend/    Next.js 14 App Router client
 ```
 
@@ -256,7 +243,6 @@ RentEase/
 ```
 RentEase-Furniture-Appliance-Rental-Platform-Project/
 ├── backend/
-│   ├── api/                  # Vercel serverless entry point
 │   ├── src/
 │   │   ├── config/           # env, DB, third-party SDK setup
 │   │   ├── constants/        # roles, statuses, demo accounts, cities
@@ -269,7 +255,7 @@ RentEase-Furniture-Appliance-Rental-Platform-Project/
 │   │   ├── utils/            # ApiError, ApiResponse, asyncHandler, logger
 │   │   ├── validators/       # Zod request schemas
 │   │   ├── app.js            # Express app assembly
-│   │   ├── server.js         # local dev entry point
+│   │   ├── server.js         # API entry point (local dev and Render)
 │   │   └── seed.js           # demo-data seeding orchestrator
 │   ├── scripts/startMongo.js # in-memory MongoDB for zero-install local dev
 │   └── package.json
@@ -286,7 +272,8 @@ RentEase-Furniture-Appliance-Rental-Platform-Project/
 │   ├── lib/ & hooks/         # client utilities and reusable hooks
 │   └── package.json
 ├── docs/assets/               # README screenshots & logo
-├── vercel.json                 # single-project routing: /api/* → backend, else → frontend
+├── render.yaml                 # Render blueprint for the backend API
+├── vercel.json                 # Vercel build for the Next.js frontend
 └── LICENSE
 ```
 
@@ -374,8 +361,8 @@ npm test
 |---|:---:|---|
 | `NODE_ENV` | No | `development` \| `production` |
 | `PORT` | No | API port (default `5000`) |
-| `CLIENT_URL` | **Yes** | Frontend origin — used for CORS & redirects |
-| `MONGODB_URI` | **Yes** | MongoDB connection string |
+| `CLIENT_URL` | **Yes** | Frontend origin — used for CORS, Socket.IO & redirects (production: `https://rentease-furniture-rental-ecru.vercel.app`) |
+| `MONGODB_URI` | **Yes** | MongoDB connection string — production: your Atlas `mongodb+srv://…` URI, set on Render only, password URL-encoded |
 | `DEMO_MODE` | No | `true` (default) relaxes email/phone verification for demo use |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | **Yes** | Sign JWTs — change in production |
 | `JWT_ACCESS_EXPIRES_IN` / `JWT_REFRESH_EXPIRES_IN` | No | Token lifetimes (default `15m` / `30d`) |
@@ -392,9 +379,23 @@ npm test
 
 | Variable | Required | Description |
 |---|:---:|---|
-| `NEXT_PUBLIC_API_URL` | **Yes** | Base URL of the backend API, e.g. `http://localhost:5000/api/v1` |
+| `NEXT_PUBLIC_API_URL` | **Yes** | Base URL of the backend API — local: `http://localhost:5000/api/v1`; production: `https://<your-render-service>.onrender.com/api/v1` |
 
-> **Secrets hygiene:** `.env` / `.env.local` are gitignored — only `*.example` templates are tracked. Rotate every secret before a real production deployment, and set them through your host's secret manager (Vercel Project Settings → Environment Variables) rather than shipping a file.
+> **Secrets hygiene:** `.env` / `.env.local` are gitignored — only `*.example` templates are tracked. Rotate every secret before a real production deployment, and set them through each host's dashboard (Render → Environment for the backend, Vercel → Settings → Environment Variables for the frontend) rather than shipping a file. The frontend never needs `MONGODB_URI` or any backend secret.
+
+### Production deployment
+
+| Host | Deploys | Required settings |
+|---|---|---|
+| **Render** | `backend/` via [`render.yaml`](render.yaml) (`node src/server.js`) | `MONGODB_URI` (Atlas connection string), `CLIENT_URL` (Vercel origin). JWT secrets are generated by the blueprint. |
+| **Vercel** | `frontend/` via [`vercel.json`](vercel.json) | `NEXT_PUBLIC_API_URL` = `https://<your-render-service>.onrender.com/api/v1` (Production + Preview) |
+| **MongoDB Atlas** | Database | Network Access must allow Render (`0.0.0.0/0` on Render's free tier) |
+
+- `NEXT_PUBLIC_API_URL` is inlined at build time — **redeploy Vercel after changing it**. Vercel builds stop with a clear error if it is missing, points at localhost, or points at the Vercel site itself.
+- After changing the Atlas database user's password, update `MONGODB_URI` on Render and redeploy. `GET https://<your-render-service>.onrender.com/api/v1/health` returns `database.status: "connected"` once it works, or the reason (`AUTH_FAILED`, `UNREACHABLE`, `DNS_FAILED`, `INVALID_URI`, `MONGODB_URI_MISSING`) if not. Until then every API route answers `503 Database unavailable: …` with that reason.
+- On startup the API creates any missing demo account and re-syncs a demo account's password, active/verified flags, and approval status if they drifted — only those specific demo accounts, never deleting anything or touching other users. The database is always `rentease`, whatever database name the connection string carries.
+- Read-only check of a real database (database name, collection counts, whether every demo login will authenticate): from `backend/`, `node --env-file=<file containing MONGODB_URI> scripts/checkDemoAccounts.js`.
+- Render's free tier sleeps when idle; the first request after a while can take about a minute.
 
 ---
 
@@ -518,12 +519,12 @@ npm test
 
 ```bash
 # Log in as the demo customer
-curl -X POST https://rentease-furniture-rental-ecru.vercel.app/api/v1/auth/login \
+curl -X POST https://<your-render-service>.onrender.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"demo.customer@rentease.com","password":"Demo@1234","role":"customer"}'
 
 # Use the returned accessToken to fetch a city's catalog
-curl "https://rentease-furniture-rental-ecru.vercel.app/api/v1/products?city=<CITY_ID>&sort=newest&limit=12" \
+curl "https://<your-render-service>.onrender.com/api/v1/products?city=<CITY_ID>&sort=newest&limit=12" \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 

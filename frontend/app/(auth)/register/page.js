@@ -14,6 +14,7 @@ import { TwoFactorVerifyForm, TwoFactorSetupForm } from '@/components/auth/TwoFa
 import { useRegisterMutation, useListCitiesQuery, useLoginMutation } from '@/store/authApi';
 import { DEMO_ACCOUNTS, DELIVERY_PARTNER_BY_CITY } from '@/lib/demoAccounts';
 import { getRoleHomePath } from '@/lib/roleRedirect';
+import { describeApiError } from '@/lib/apiErrors';
 
 const ROLES = [
   { value: 'customer', label: 'Customer', icon: User },
@@ -114,8 +115,12 @@ export default function RegisterPage() {
       // Redux into requires2FA/requires2FASetup, and this page's own render (below) switches to
       // the matching inline TwoFactorVerifyForm/TwoFactorSetupForm — same behavior as /login,
       // no redirect to a different page.
-    } catch {
-      toast.error('Demo login failed. Please try again.');
+    } catch (err) {
+      // Same error reporting as the Login page's demo tiles — this used to discard `err`
+      // entirely, so a database outage showed up here as a misleading generic failure.
+      // eslint-disable-next-line no-console
+      console.error('Demo login failed:', err);
+      toast.error(describeApiError(err, 'Demo login failed. Please try again.'));
     }
   };
 
@@ -304,7 +309,7 @@ export default function RegisterPage() {
             </AnimatePresence>
 
             {error && (
-              <p className="text-sm text-rose-500">{error.data?.message || 'Registration failed. Please try again.'}</p>
+              <p className="text-sm text-rose-500">{describeApiError(error, 'Registration failed. Please try again.')}</p>
             )}
 
             <Button type="submit" loading={isLoading || isAutoLoggingIn} className="mt-2 w-full">
